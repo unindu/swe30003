@@ -6,6 +6,15 @@ class ItemHolder:
         self.conn = sqlite3.connect("inventory_database.db")
         self.cursor = self.conn.cursor()
 
+        # Turns our foreign keys are off by default?
+        # This means when we delete an item from items
+        # it is also removed from stock EVERYWHERE
+        # (So anywhere with the item id as a foreign key)
+        self.conn.execute("PRAGMA foreign_keys = ON;")
+
+        # WAL, Write Ahead Logging, this... writes the logging... ahead
+        # Increases performance
+        self.conn.execute("PRAGMA journal_mode = WAL;")
 
     def setup_db(self):
 
@@ -33,7 +42,7 @@ class ItemHolder:
                 id INTEGER,
                 quantity INTEGER NOT NULL,
                 location TEXT NOT NULL,
-                FOREIGN KEY(id) REFERENCES items(id),
+                FOREIGN KEY(id) REFERENCES items(id) ON DELETE CASCADE,
                 UNIQUE(id, location)
             )
             """
@@ -67,7 +76,7 @@ class ItemHolder:
 
         self.conn.commit()
 
-    def update_stock(self, item_name, change, location):
+    def update_stock(self, item_name, change, location = "Inventory"):
 
         item_id = self.cursor.execute(
             """
@@ -85,7 +94,19 @@ class ItemHolder:
         )
         self.conn.commit()
 
+
+    def remove_item(self, item_name):
+        self.cursor.execute(
+            """
+            DELETE FROM items WHERE name = ?;
+            """, (item_name,)
+        )
+
+        self.conn.commit()
+
+
 if __name__ == "__main__":
     # Just to test making the table
     holder = ItemHolder()
+    holder.setup_db()
 
