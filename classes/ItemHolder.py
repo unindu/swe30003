@@ -76,24 +76,33 @@ class ItemHolder:
 
         self.conn.commit()
 
-    def update_stock(self, item_name, change, location = "Inventory"):
 
+    # change must be a positive or negative integer
+    def update_stock(self, item_name, change, location):
+        """
+        item_name: str - name of the item
+        change: int - positive or negative integer
+        location: str - name of location
+        Location is MOST important, updating stock for "inventory" will not work, it must be "Inventory"
+        Convention for user itemHolders is <user_id>_cart or <user_id>_order
+        """
         item_id = self.cursor.execute(
             """
             SELECT id FROM items WHERE name = ?
             """, (item_name,)
         ).fetchone()[0]
 
-        if item_id is None:
-            raise ValueError(f"Item '{item_name}' does not exist in the database.")
-
+        # Try and insert this new stock, *but* if it already exists
+        # (I.e. there is a conflict with the id, location unique rule)
+        # Then update the quantity
         self.cursor.execute(
             """
-            UPDATE stock SET quantity = quantity + ? WHERE id = ? AND location = ?
-            """, (change, item_id, location)
+             INSERT INTO stock (id, quantity, location)
+             VALUES (?, ?, ?)
+             ON CONFLICT(id, location) DO UPDATE SET quantity = quantity + ?
+             """, (change, item_id, location)
         )
         self.conn.commit()
-
 
     def remove_item(self, item_name):
         self.cursor.execute(
