@@ -3,15 +3,9 @@ import sqlite3
 
 class ItemHolder:
     def __init__(self):
-        self.conn = sqlite3.connect("items.db")
+        self.conn = sqlite3.connect("inventory_database.db")
         self.cursor = self.conn.cursor()
 
-        self.cursor.execute("""CREATE TABLE IF NOT EXISTS items (
-            name text,
-            desc text,
-            price real,
-            imagePath text  
-        )""")
 
     def setup_db(self):
 
@@ -19,10 +13,10 @@ class ItemHolder:
         # It just holds item info basically
         self.cursor.execute(
             """
-            CREATE TABLE items (
+            CREATE TABLE IF NOT EXISTS items (
                 id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                desc TEXT NOT NULL
+                name TEXT NOT NULL UNIQUE,
+                desc TEXT NOT NULL,
                 price REAL NOT NULL,
                 imagePath TEXT NOT NULL
             )
@@ -34,12 +28,13 @@ class ItemHolder:
         # than once in the table, so itemid can't be the primary key.
         self.cursor.execute(
             """
-            CREATE TABLE stock (
+            CREATE TABLE IF NOT EXISTS stock (
                 stock_id INTEGER PRIMARY KEY,
                 id INTEGER,
                 quantity INTEGER NOT NULL,
                 location TEXT NOT NULL,
-                FOREIGN KEY(id) REFERENCES items(id)
+                FOREIGN KEY(id) REFERENCES items(id),
+                UNIQUE(id, location)
             )
             """
         )
@@ -55,14 +50,42 @@ class ItemHolder:
             VALUES (?, ?, ?, ?)
             """, (name, desc, price, image_path)
         )
+
+        item_id = self.cursor.execute(
+            """
+            SELECT id FROM items WHERE name = ?
+            """, (name,)
+        ).fetchone()[0]
+
+        # Also add the item to the stock table ONLY IF IT ISN'T THERE ALREADY
+        self.cursor.execute(
+            """
+            INSERT OR IGNORE INTO stock (id, quantity, location)
+            VALUES (?, ?, ?)
+            """, (item_id, 0, "Inventory")
+        )
+
         self.conn.commit()
 
+    def update_stock(self, item_name, change, location):
 
+        item_id = self.cursor.execute(
+            """
+            SELECT id FROM items WHERE name = ?
+            """, (item_name,)
+        ).fetchone()[0]
+
+        if item_id is None:
+            raise ValueError(f"Item '{item_name}' does not exist in the database.")
+
+        self.cursor.execute(
+            """
+            UPDATE stock SET quantity = quantity + ? WHERE id = ? AND location = ?
+            """, (change, item_id, location)
+        )
+        self.conn.commit()
 
 if __name__ == "__main__":
     # Just to test making the table
     holder = ItemHolder()
-    holder.setup_db()
-    holder.add_item("Test item", "This is a test item", 10.00)
-    holder.add_item("Silly item", "This is a silly item", 7.57)
 
