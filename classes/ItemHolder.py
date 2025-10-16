@@ -1,12 +1,14 @@
 import sqlite3
-
+import pathlib
 
 class ItemHolder:
     def __init__(self):
-        self.conn = sqlite3.connect("inventory_database.db")
+        # The DB is in outside the classes now
+        db_path = pathlib.Path(__file__).parent.parent.resolve() / "inventory_database.db"
+        self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
 
-        # Turns our foreign keys are off by default?
+        # Turns out foreign keys are off by default?
         # This means when we delete an item from items
         # it is also removed from stock EVERYWHERE
         # (So anywhere with the item id as a foreign key)
