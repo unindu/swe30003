@@ -1,9 +1,25 @@
+"""
+Note for Tony:
+
+The checkout() method currently records the order total and moves items
+from the user's cart to their order history. At this stage, the order is
+considered "placed" but not "paid" or "scheduled for delivery".
+
+Your work will extend this process by:
+1. Adding a payment step BEFORE the order is finalised.
+2. Creating a delivery record that links to order_id after payment success.
+
+You can integrate your logic by modifying checkout() or by creating a
+new method (e.g., process_payment_and_delivery(order_id)).
+No changes to Inventory/Cart logic are required.
+"""
+
+# classes/Order.py
 from classes.ItemHolder import ItemHolder
 from classes.Payment import Payment
 from classes.Delivery import Delivery
 from classes.SalesReport import SalesReport
 from classes.db_manager import DBManager
-
 from datetime import datetime   # used for timestamp for _create_order_
 
 # Order class inherits from ItemHolder class and orchestrates the order process
