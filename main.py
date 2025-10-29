@@ -2,7 +2,7 @@
 from classes.Account import Account
 from classes.Inventory import Inventory
 from classes.Cart import Cart
-from classes.Order import Order
+from classes.Order import Order, view_user_orders
 
 """
 Main CLI controller for Hawthorn Express.
@@ -58,7 +58,7 @@ def staff_menu(user):
         print("3. Remove Item")
         print("4. Adjust Stock")
         print("5. View Users")
-        print("6. View Orders")
+        print("6. View Orders of User")
         print("7. Cancel/Refund Order")
         print("8. Logout")
         choice = input("> ")
@@ -81,13 +81,20 @@ def staff_menu(user):
             case "5":
                 pass
             case "6":
-                pass
+                user_id = input("User ID: ")
+                if int(user_id) == user_id:
+                    print("Invalid user ID")
+                    continue
+                view_user_orders(int(user_id))
             case "7":
-                userId = input("User ID: ")
-                order = Order(userId)
-                orderId = input("Order ID: ")
-                # TODO, how to cancel order Tony?
-                order.cancel(id)
+                user_id = input("User ID: ")
+                if int(user_id) == user_id:
+                    print("Invalid user ID")
+                    continue
+                order = Order(user_id)
+                order_id = input("Order ID: ")
+                # TODO, how to cancel order ?
+                order.cancel(order_id)
             case "8":
                 break
             case _:
@@ -130,6 +137,8 @@ def main_menu(user):
             cart.remove_from_cart(item, qty)
 
         elif choice == "5":
+            # The only way a user could have a pending order is via crash
+            # or exit, so if they have a pending one, delete it.
             print("\nEnter delivery details:")
             name = input("Name: ")
             address = input("Address: ")
@@ -151,4 +160,10 @@ if __name__ == "__main__":
     """
     while True:
         user = login_flow()   # login/register returns user dict
-        main_menu(user)       # pass the user to menu
+        # Check what system they should be logged into.
+        if user['role'] == "customer":
+            main_menu(user)
+        elif user['role'] in ["staff", "admin"]:
+            staff_menu(user)
+        else:
+            print("Invalid role, please contact support")

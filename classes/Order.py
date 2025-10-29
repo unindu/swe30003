@@ -38,7 +38,10 @@ class Order(ItemHolder):
 
     # flow of the checkout process, cart -> order -> payment -> delivery -> confirmation
     def checkout(self, name, address, phone, payment_method="credit_card"):
-
+        self.db.execute("""
+            DELETE FROM orders 
+            WHERE status = 'pending' AND user_id = ?
+        """, (self.user_id,), commit=True)
         # Get cart total cost
         total = self._get_cart_total()
         if not total:
@@ -228,6 +231,7 @@ def view_user_orders(userId: int):
                 f" {"\033[38;2;216;191;216m"}{formatted_qty + " ":<10}{r}{rowBG}-" +
                 f"{"\033[38;2;255;204;153m"} ${formatted_price + " ":<7}{r}{rowBG}-"+
                 f"{"\033[38;2;255;160;122m"} ${formatted_total + " ":<16}{r}")
+
 
 if __name__ == "__main__":
     view_user_orders(1)
