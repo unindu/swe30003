@@ -35,11 +35,17 @@ class ItemHolder:
                 location TEXT NOT NULL,
                 order_id INTEGER,
                 FOREIGN KEY(id) REFERENCES items(id),
-                FOREIGN KEY(order_id) REFERENCES orders(order_id),
-                UNIQUE(id, location)
+                FOREIGN KEY(order_id) REFERENCES orders(order_id)
             )
-            """
+            """)
+        # We want uniqueness but, but before it meant a customer could only buy one item once...
+        # This makes it so there is no unique rule apart from in the inventory.
+        self.cursor.execute("""
+        CREATE UNIQUE INDEX inventory_id_unique
+        ON stock(id)
+        WHERE location = 'Inventory';"""
         )
+
         self.conn.commit()
 
     def add_item(self, name, desc, price, image_path = "assets/images/none.png"):
