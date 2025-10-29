@@ -87,7 +87,11 @@ def main_menu(user):
             cart.remove_from_cart(item, qty)
 
         elif choice == "5":
-            order.checkout()
+            print("\nEnter delivery details:")
+            name = input("Name: ")
+            address = input("Address: ")
+            phone = input("Phone: ")
+            order.checkout(name, address, phone)
 
         elif choice == "6":
             break  # logout and return to login_flow()
