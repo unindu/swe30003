@@ -49,6 +49,49 @@ def login_flow():
         else:
             print("Invalid selection")
 
+def staff_menu(user):
+    inventory = Inventory()
+    while True:
+        print("\n=== Staff Menu ===")
+        print("1. View Inventory")
+        print("2. Add Item")
+        print("3. Remove Item")
+        print("4. Adjust Stock")
+        print("5. View Users")
+        print("6. View Orders")
+        print("7. Cancel/Refund Order")
+        print("8. Logout")
+        choice = input("> ")
+
+        match choice:
+            case "1":
+                inventory.list_items()
+            case "2":
+                name = input("Item name: ")
+                price = float(input("Price: "))
+                qty = int(input("Quantity: "))
+                inventory.add_item(name, price, qty)
+            case "3":
+                name = input("Item name: ")
+                inventory.remove_item(name)
+            case "4":
+                name = input("Item name: ")
+                qty = int(input("Quantity: "))
+                inventory.update_stock(name, qty, "Inventory")
+            case "5":
+                pass
+            case "6":
+                pass
+            case "7":
+                userId = input("User ID: ")
+                order = Order(userId)
+                orderId = input("Order ID: ")
+                # TODO, how to cancel order Tony?
+                order.cancel(id)
+            case "8":
+                break
+            case _:
+                print("Invalid selection")
 
 def main_menu(user):
     """
@@ -103,7 +146,7 @@ def main_menu(user):
 if __name__ == "__main__":
     """
     Entry point for the CLI version of the system.
-    Future Flask version will import this logic but replace
+    Future Flask version may import this logic but replace
     the input/output with HTTP routes and HTML templates.
     """
     while True:

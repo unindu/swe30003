@@ -1,16 +1,3 @@
-"""
-Note for Adam:
-
-This file was updated to use DBManager instead of creating its own sqlite connection.
-No functional logic has changed.
-
-The stock update query now uses `ON CONFLICT DO UPDATE SET quantity = quantity + excluded.quantity`.
-This prevents duplicate stock rows across locations and ensures Cart/Order operations stay consistent.
-No changes required from Item as this is purely a stability improvement.
-
-
-"""
-
 from classes.db_manager import DBManager
 
 class ItemHolder:
@@ -46,13 +33,14 @@ class ItemHolder:
                 id INTEGER,
                 quantity INTEGER NOT NULL,
                 location TEXT NOT NULL,
-                FOREIGN KEY(id) REFERENCES items(id) ON DELETE CASCADE,
+                order_id INTEGER,
+                FOREIGN KEY(id) REFERENCES items(id),
+                FOREIGN KEY(order_id) REFERENCES orders(order_id),
                 UNIQUE(id, location)
             )
             """
         )
         self.conn.commit()
-
 
     def add_item(self, name, desc, price, image_path = "assets/images/none.png"):
         self.cursor.execute(
@@ -82,13 +70,14 @@ class ItemHolder:
 
 
     # change must be a positive or negative integer
-    def update_stock(self, item_name, change, location):
+    def update_stock(self, item_name, change, location, order_id = None):
         """
         item_name: str - name of the item
         change: int - positive or negative integer
         location: str - name of location
         Location is MOST important, updating stock for "inventory" will not work, it must be "Inventory"
         Convention for user itemHolders is <user_id>_cart or <user_id>_order
+        NEW - Foreign key for order_id to be passed in. If unrealted just leave it
         """
         item_id = self.cursor.execute(
             """

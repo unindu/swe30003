@@ -1,23 +1,6 @@
 # classes/Inventory.py
 from classes.ItemHolder import ItemHolder
 
-"""
-    Inventory represents the shared stock available for all users.
-    
-    Note for Adam:
-    
-    The Item class is extended to distinguish Food vs Alcohol,
-    so consider adding a 'category' column to the items table.
-    
-    Example:
-        category TEXT CHECK(category IN ('food', 'alcohol'))
-    
-    This will allow:
-    - Filtering items by type in the UI 
-    - Enforcing age restrictions when adding to cart
-    - Displaying food/alcohol differently in inventory lists
-"""
-
 class Inventory(ItemHolder):
     def __init__(self):
         super().__init__()
@@ -40,3 +23,7 @@ class Inventory(ItemHolder):
         for name, desc, price, qty in rows:
             print(f"{name:<15} {qty:<5} ${price:<8.2f} {desc}")
         print()
+
+if __name__ == "__main__":
+    inventory = Inventory()
+    inventory.list_items()
