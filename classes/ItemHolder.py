@@ -1,22 +1,24 @@
-import sqlite3
-import pathlib
+"""
+Note for Adam:
+
+This file was updated to use DBManager instead of creating its own sqlite connection.
+No functional logic has changed.
+
+The stock update query now uses `ON CONFLICT DO UPDATE SET quantity = quantity + excluded.quantity`.
+This prevents duplicate stock rows across locations and ensures Cart/Order operations stay consistent.
+No changes required from Item as this is purely a stability improvement.
+
+
+"""
+
+from classes.db_manager import DBManager
 
 class ItemHolder:
     def __init__(self):
-        # The DB is in outside the classes now
-        db_path = pathlib.Path(__file__).parent.parent.resolve() / "inventory_database.db"
-        self.conn = sqlite3.connect(db_path)
-        self.cursor = self.conn.cursor()
+        self.db = DBManager()
+        self.conn = self.db.conn
+        self.cursor = self.db.cursor
 
-        # Turns out foreign keys are off by default?
-        # This means when we delete an item from items
-        # it is also removed from stock EVERYWHERE
-        # (So anywhere with the item id as a foreign key)
-        self.conn.execute("PRAGMA foreign_keys = ON;")
-
-        # WAL, Write Ahead Logging, this... writes the logging... ahead
-        # Increases performance
-        self.conn.execute("PRAGMA journal_mode = WAL;")
 
     def setup_db(self):
 
@@ -98,12 +100,14 @@ class ItemHolder:
         # (I.e. there is a conflict with the id, location unique rule)
         # Then update the quantity
         self.cursor.execute(
-            """
-             INSERT INTO stock (id, quantity, location)
-             VALUES (?, ?, ?)
-             ON CONFLICT(id, location) DO UPDATE SET quantity = quantity + ?
-             """, (change, item_id, location)
-        )
+        """
+        INSERT INTO stock (id, quantity, location)
+        VALUES (?, ?, ?)
+        ON CONFLICT(id, location)
+        DO UPDATE SET quantity = quantity + excluded.quantity
+        """, (item_id, change, location)
+        )   
+
         self.conn.commit()
 
     def remove_item(self, item_name):
