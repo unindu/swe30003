@@ -62,7 +62,7 @@ def main_menu(user):
 
     while True:
         print(f"\n=== Hawthorn Express (Logged in as {user['username']}) ===")
-        print("1. View Inventory")
+        print("1. Browse")
         print("2. Add to Cart")
         print("3. View Cart")
         print("4. Remove from Cart")

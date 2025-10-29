@@ -1,0 +1,6 @@
+
+
+
+class SalesReport:
+
+    pass

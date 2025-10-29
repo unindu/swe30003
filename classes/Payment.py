@@ -68,7 +68,7 @@ class Payment:
             INSERT INTO payments (order_id, amount, status, transaction_id, payment_date)
             VALUES (?, ?, ?, ?, ?)
         """, (self.order_id, self.cost, self.status, self.transaction_id, self.payment_date), commit=True)
-    
+
     # refund payment, called when order is cancelled from Order class
     def refund(self):
 
@@ -89,3 +89,7 @@ class Payment:
             return True
 
         return False # if refund is not successful
+
+
+if __name__ == "__main__":
+    payment = Payment(1, 100)

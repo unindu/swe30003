@@ -35,7 +35,8 @@ class Order(ItemHolder):
         self.order_location = f"{user_id}_order"
         self.payment = None     
         self.delivery = None    
-        self.sales_report = SalesReport()  
+        self.sales_report = SalesReport()
+        self.db = DBManager()
         self._create_orders_table()
     
     # create the orders table if it doesn't exist
@@ -46,7 +47,8 @@ class Order(ItemHolder):
                 order_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 total REAL NOT NULL,
-                date TEXT NOT NULL
+                date TEXT NOT NULL,
+                status TEXT DEFAULT 'pending'
             )
         """, commit=True)
 
@@ -99,7 +101,7 @@ class Order(ItemHolder):
             VALUES (?, ?, ?)
         """, (self.user_id, total, date_str), commit=True)
 
-        return cursor.lastrowid    # latest order has the order_id
+        return cursor.lastrowid    # the latest order has the order_id
     
 
     # used within the checkout process to process the payment (default is credit card, hardcoded, see line 38)
@@ -125,18 +127,16 @@ class Order(ItemHolder):
             JOIN items ON stock.id = items.id
             WHERE stock.location = ?
         """, (self.cart_location,)).fetchall()
-        
-        # log each items sale
-        for (item_id, qty, item_name, item_price) in items:
-            self.sales_report.log_sale(item_id, item_name, qty, item_price * qty, order_id)
-        
+
         # move items in cart to order table
         self.db.execute("""
             UPDATE stock 
             SET location = ?
             WHERE location = ?  
         """, (self.order_location, self.cart_location), commit=True)
-    
+
+        self.db.execute("UPDATE orders SET status = 'complete' WHERE order_id = ?", (order_id,), commit=True)
+
     # used to schedule delivery after order is completed
     def _schedule_delivery(self, order_id, name, address, phone):
         # Create delivery with values from console input
@@ -201,3 +201,7 @@ class Order(ItemHolder):
             print(f"  {item_name} - Qty: {qty} - ${price:.2f} each - Total: ${total:.2f}")
         
         print(f"\nTotal: ${order_info[0]:.2f}\n")
+
+
+if __name__ == "__main__":
+    order = Order(1)
