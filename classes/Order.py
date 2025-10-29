@@ -38,6 +38,7 @@ class Order(ItemHolder):
 
     # flow of the checkout process, cart -> order -> payment -> delivery -> confirmation
     def checkout(self, name, address, phone, payment_method="credit_card"):
+        # Should solve the pending issues
         self.db.execute("""
             DELETE FROM orders 
             WHERE status = 'pending' AND user_id = ?
@@ -70,11 +71,11 @@ class Order(ItemHolder):
     def _get_cart_total(self):
 
         result = self.db.execute("""
-            SELECT SUM(items.price * stock.quantity)
-            FROM stock
-            JOIN items ON stock.id = items.id
-            WHERE stock.location = ?
-        """, (self.cart_location,)).fetchone()[0]   # one row (first) is returned because SUM
+            SELECT SUM(items.price * carts.quantity)
+            FROM carts
+            JOIN items ON carts.item_id = items.id
+            WHERE carts.user_id = ?
+        """, (self.user_id,)).fetchone()[0]   # one row (first) is returned because SUM
         
         return result or 0  # if no SUM because no items in cart, then 0
     
@@ -107,22 +108,17 @@ class Order(ItemHolder):
     # used within the checkout process to move items from cart to order
     def _move_cart_to_order(self, order_id):
         
-        # select items from cart
-        items = self.db.execute("""
-            SELECT stock.id, stock.quantity, items.name, items.price
-            FROM stock
-            JOIN items ON stock.id = items.id
-            WHERE stock.location = ?
-        """, (self.cart_location,)).fetchall()
 
-        # move items in cart to order table
+        # Insert into the stock table under order id
         self.db.execute("""
-            UPDATE stock 
-            SET location = ?,
-                order_id = ?
-            WHERE location = ?  
-        """, (self.order_location, order_id, self.cart_location), commit=True)
+            INSERT INTO stock (id, quantity, order_id)
+            SELECT item_id, quantity, ? FROM carts WHERE user_id = ?
+        """, (order_id, self.user_id), commit=True)
 
+        # Delete from the cart table
+        self.db.execute("DELETE FROM carts WHERE user_id = ?", (self.user_id,), commit=True)
+
+        # Mark order as complete, for debugging mostly...
         self.db.execute("UPDATE orders SET status = 'complete' WHERE order_id = ?", (order_id,), commit=True)
 
     # used to schedule delivery after order is completed
@@ -176,8 +172,8 @@ class Order(ItemHolder):
             SELECT items.name, items.price, stock.quantity
             FROM stock
             JOIN items ON stock.id = items.id
-            WHERE stock.location = ?
-        """, (self.order_location,)).fetchall()
+            WHERE stock.order_id = ?
+        """, (order_id,)).fetchall()
         
         # Print order confirmation
         print(f"\nORDER CONFIRMATION #{order_id}")

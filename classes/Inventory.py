@@ -10,7 +10,7 @@ class Inventory(ItemHolder):
             SELECT i.name, i.desc, i.price, s.quantity
             FROM items i
             JOIN stock s ON i.id = s.id
-            WHERE s.location = 'Inventory'
+            WHERE s.order_id = -1 
         """).fetchall()
 
         if not rows:

@@ -1,5 +1,5 @@
 # main.py
-from classes.Account import Account
+from classes.Account import Account, view_all_users
 from classes.Inventory import Inventory
 from classes.Cart import Cart
 from classes.Order import Order, view_user_orders
@@ -55,12 +55,10 @@ def staff_menu(user):
         print("\n=== Staff Menu ===")
         print("1. View Inventory")
         print("2. Add Item")
-        print("3. Remove Item")
-        print("4. Adjust Stock")
-        print("5. View Users")
-        print("6. View Orders of User")
-        print("7. Cancel/Refund Order")
-        print("8. Logout")
+        print("3. Adjust Stock")
+        print("4. View Users")
+        print("5. View Orders of User")
+        print("6. Logout")
         choice = input("> ")
 
         match choice:
@@ -68,34 +66,23 @@ def staff_menu(user):
                 inventory.list_items()
             case "2":
                 name = input("Item name: ")
+                desc = input("Description: ")
                 price = float(input("Price: "))
                 qty = int(input("Quantity: "))
-                inventory.add_item(name, price, qty)
+                inventory.add_item(name, desc, price, qty)
             case "3":
                 name = input("Item name: ")
-                inventory.remove_item(name)
-            case "4":
-                name = input("Item name: ")
                 qty = int(input("Quantity: "))
-                inventory.update_stock(name, qty, "Inventory")
+                inventory.update_stock(name, qty, -1)
+            case "4":
+                view_all_users()
             case "5":
-                pass
-            case "6":
                 user_id = input("User ID: ")
                 if int(user_id) == user_id:
                     print("Invalid user ID")
                     continue
                 view_user_orders(int(user_id))
-            case "7":
-                user_id = input("User ID: ")
-                if int(user_id) == user_id:
-                    print("Invalid user ID")
-                    continue
-                order = Order(user_id)
-                order_id = input("Order ID: ")
-                # TODO, how to cancel order ?
-                order.cancel(order_id)
-            case "8":
+            case "6":
                 break
             case _:
                 print("Invalid selection")
@@ -117,7 +104,8 @@ def main_menu(user):
         print("3. View Cart")
         print("4. Remove from Cart")
         print("5. Checkout")
-        print("6. Logout")
+        print("6. Check past Orders")
+        print("7. Logout")
         choice = input("> ")
 
         if choice == "1":
@@ -144,8 +132,10 @@ def main_menu(user):
             address = input("Address: ")
             phone = input("Phone: ")
             order.checkout(name, address, phone)
-
         elif choice == "6":
+            view_user_orders(user["user_id"])
+
+        elif choice == "7":
             break  # logout and return to login_flow()
 
         else:
