@@ -1,16 +1,3 @@
-"""
-Note for Adam:
-
-This file was updated to use DBManager instead of creating its own sqlite connection.
-No functional logic has changed.
-
-The stock update query now uses `ON CONFLICT DO UPDATE SET quantity = quantity + excluded.quantity`.
-This prevents duplicate stock rows across locations and ensures Cart/Order operations stay consistent.
-No changes required from Item as this is purely a stability improvement.
-
-
-"""
-
 from classes.db_manager import DBManager
 
 class ItemHolder:
@@ -45,50 +32,61 @@ class ItemHolder:
                 stock_id INTEGER PRIMARY KEY,
                 id INTEGER,
                 quantity INTEGER NOT NULL,
-                location TEXT NOT NULL,
+                order_id INTEGER,
                 FOREIGN KEY(id) REFERENCES items(id) ON DELETE CASCADE,
-                UNIQUE(id, location)
+                FOREIGN KEY(order_id) REFERENCES orders(order_id) ON DELETE CASCADE,
+                UNIQUE(id, order_id)
             )
+            """)
+
+        self.cursor.execute(
             """
-        )
+            CREATE TABLE IF NOT EXISTS carts
+            (
+                cart_item_id INTEGER PRIMARY KEY,
+                item_id INTEGER,
+                quantity INTEGER NOT NULL,
+                user_id INTEGER,
+                FOREIGN KEY (item_id) REFERENCES items (id),
+                FOREIGN KEY (user_id) REFERENCES accounts (account_id),
+                UNIQUE (item_id, user_id)
+            )
+            """)
+
         self.conn.commit()
 
-
-    def add_item(self, name, desc, price, image_path = "assets/images/none.png"):
+    def add_item(self, name, desc, price, qty, image_path = "assets/images/none.png"):
         self.cursor.execute(
             # Insert or ignore, it silently drops it if it already the name already exists
             # No two items should have the EXACT same name, so hopefully no duplicates
             """
-            INSERT OR IGNORE INTO items (name, desc, price, imagePath)
+            INSERT INTO items (name, desc, price, imagePath)
             VALUES (?, ?, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET
+                desc = excluded.desc, price = excluded.price, imagePath = excluded.imagePath
             """, (name, desc, price, image_path)
         )
-
-        item_id = self.cursor.execute(
-            """
-            SELECT id FROM items WHERE name = ?
-            """, (name,)
-        ).fetchone()[0]
 
         # Also add the item to the stock table ONLY IF IT ISN'T THERE ALREADY
         self.cursor.execute(
             """
-            INSERT OR IGNORE INTO stock (id, quantity, location)
-            VALUES (?, ?, ?)
-            """, (item_id, 0, "Inventory")
+            INSERT OR IGNORE INTO stock (id, quantity, order_id)
+            SELECT id, ?, -1 from items WHERE name = ?
+            """, (qty, name)
         )
 
         self.conn.commit()
 
 
     # change must be a positive or negative integer
-    def update_stock(self, item_name, change, location):
+    def update_stock(self, item_name, change, order_id):
         """
         item_name: str - name of the item
         change: int - positive or negative integer
         location: str - name of location
-        Location is MOST important, updating stock for "inventory" will not work, it must be "Inventory"
-        Convention for user itemHolders is <user_id>_cart or <user_id>_order
+        To represent Inventory
+         for user itemHolders is <user_id>_cart or <user_id>_order
+        NEW - Foreign key for order_id to be passed in. If unrealted just leave it
         """
         item_id = self.cursor.execute(
             """
@@ -101,12 +99,12 @@ class ItemHolder:
         # Then update the quantity
         self.cursor.execute(
         """
-        INSERT INTO stock (id, quantity, location)
+        INSERT INTO stock (id, quantity, order_id)
         VALUES (?, ?, ?)
-        ON CONFLICT(id, location)
+        ON CONFLICT(id, order_id)
         DO UPDATE SET quantity = quantity + excluded.quantity
-        """, (item_id, change, location)
-        )   
+        """, (item_id, change, order_id)
+        )
 
         self.conn.commit()
 

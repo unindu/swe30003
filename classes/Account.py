@@ -69,3 +69,15 @@ class Account:
 
         print("Invalid username or password.")
         return None
+
+
+
+def view_all_users():
+    db = DBManager()
+    users = db.execute("""
+    SELECT * FROM accounts
+    """).fetchall()
+    print("----- User ID --- Username -------- Email Address ------------------ Role -----")
+    for user in users:
+        user_id, username, email, password, role = user
+        print(f"----> User #{user_id:<4}- {username:<15} - {email:<30} - {role:<10}")

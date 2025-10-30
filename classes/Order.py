@@ -1,19 +1,3 @@
-"""
-Note for Tony:
-
-The checkout() method currently records the order total and moves items
-from the user's cart to their order history. At this stage, the order is
-considered "placed" but not "paid" or "scheduled for delivery".
-
-Your work will extend this process by:
-1. Adding a payment step BEFORE the order is finalised.
-2. Creating a delivery record that links to order_id after payment success.
-
-You can integrate your logic by modifying checkout() or by creating a
-new method (e.g., process_payment_and_delivery(order_id)).
-No changes to Inventory/Cart logic are required.
-"""
-
 # classes/Order.py
 from classes.ItemHolder import ItemHolder
 from classes.Payment import Payment
@@ -35,7 +19,8 @@ class Order(ItemHolder):
         self.order_location = f"{user_id}_order"
         self.payment = None     
         self.delivery = None    
-        self.sales_report = SalesReport()  
+        self.sales_report = SalesReport()
+        self.db = DBManager()
         self._create_orders_table()
     
     # create the orders table if it doesn't exist
@@ -46,13 +31,18 @@ class Order(ItemHolder):
                 order_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 total REAL NOT NULL,
-                date TEXT NOT NULL
+                date TEXT NOT NULL,
+                status TEXT DEFAULT 'pending'
             )
         """, commit=True)
 
     # flow of the checkout process, cart -> order -> payment -> delivery -> confirmation
     def checkout(self, name, address, phone, payment_method="credit_card"):
-
+        # Should solve the pending issues
+        self.db.execute("""
+            DELETE FROM orders 
+            WHERE status = 'pending' AND user_id = ?
+        """, (self.user_id,), commit=True)
         # Get cart total cost
         total = self._get_cart_total()
         if not total:
@@ -81,11 +71,11 @@ class Order(ItemHolder):
     def _get_cart_total(self):
 
         result = self.db.execute("""
-            SELECT SUM(items.price * stock.quantity)
-            FROM stock
-            JOIN items ON stock.id = items.id
-            WHERE stock.location = ?
-        """, (self.cart_location,)).fetchone()[0]   # one row (first) is returned because SUM
+            SELECT SUM(items.price * carts.quantity)
+            FROM carts
+            JOIN items ON carts.item_id = items.id
+            WHERE carts.user_id = ?
+        """, (self.user_id,)).fetchone()[0]   # one row (first) is returned because SUM
         
         return result or 0  # if no SUM because no items in cart, then 0
     
@@ -99,7 +89,7 @@ class Order(ItemHolder):
             VALUES (?, ?, ?)
         """, (self.user_id, total, date_str), commit=True)
 
-        return cursor.lastrowid    # latest order has the order_id
+        return cursor.lastrowid    # the latest order has the order_id
     
 
     # used within the checkout process to process the payment (default is credit card, hardcoded, see line 38)
@@ -118,25 +108,19 @@ class Order(ItemHolder):
     # used within the checkout process to move items from cart to order
     def _move_cart_to_order(self, order_id):
         
-        # select items from cart
-        items = self.db.execute("""
-            SELECT stock.id, stock.quantity, items.name, items.price
-            FROM stock
-            JOIN items ON stock.id = items.id
-            WHERE stock.location = ?
-        """, (self.cart_location,)).fetchall()
-        
-        # log each items sale
-        for (item_id, qty, item_name, item_price) in items:
-            self.sales_report.log_sale(item_id, item_name, qty, item_price * qty, order_id)
-        
-        # move items in cart to order table
+
+        # Insert into the stock table under order id
         self.db.execute("""
-            UPDATE stock 
-            SET location = ?
-            WHERE location = ?  
-        """, (self.order_location, self.cart_location), commit=True)
-    
+            INSERT INTO stock (id, quantity, order_id)
+            SELECT item_id, quantity, ? FROM carts WHERE user_id = ?
+        """, (order_id, self.user_id), commit=True)
+
+        # Delete from the cart table
+        self.db.execute("DELETE FROM carts WHERE user_id = ?", (self.user_id,), commit=True)
+
+        # Mark order as complete, for debugging mostly...
+        self.db.execute("UPDATE orders SET status = 'complete' WHERE order_id = ?", (order_id,), commit=True)
+
     # used to schedule delivery after order is completed
     def _schedule_delivery(self, order_id, name, address, phone):
         # Create delivery with values from console input
@@ -188,8 +172,8 @@ class Order(ItemHolder):
             SELECT items.name, items.price, stock.quantity
             FROM stock
             JOIN items ON stock.id = items.id
-            WHERE stock.location = ?
-        """, (self.order_location,)).fetchall()
+            WHERE stock.order_id = ?
+        """, (order_id,)).fetchall()
         
         # Print order confirmation
         print(f"\nORDER CONFIRMATION #{order_id}")
@@ -201,3 +185,51 @@ class Order(ItemHolder):
             print(f"  {item_name} - Qty: {qty} - ${price:.2f} each - Total: ${total:.2f}")
         
         print(f"\nTotal: ${order_info[0]:.2f}\n")
+
+
+def view_user_orders(userId: int):
+    db = DBManager()
+    user_orders = db.execute("""
+    SELECT * FROM orders 
+    WHERE user_id = ? 
+    ORDER BY date DESC
+    """, (userId,)).fetchall()
+    r = "\033[0m"  # This is the colour key to reset the colour
+    # Do some nice formating with every order, from earliest to latest
+    for order in user_orders:
+        row = 1
+        # First, print the order info
+        order_id, user_id, total, date, status = order
+        print(f"{"\033[48;2;60;60;60m"}{f"Order #{order_id:} - Date: {date} - Status: {status}":<73}{r}")
+        items = db.execute("""
+            SELECT items.name, items.price, stock.quantity FROM stock
+            JOIN items ON stock.id = items.id
+            WHERE stock.order_id = ?
+        """, (order_id,)).fetchall()
+        print(f"{"\033[48;2;25;25;25m"}------ {"\033[38;2;144;238;144m"}Item Name{r}{"\033[48;2;25;25;25m"} ---------------- {"\033[38;2;216;191;216m"}Quantity{r}{"\033[48;2;25;25;25m"} -- {"\033[38;2;255;204;153m"}Price{r}{"\033[48;2;25;25;25m"} --- {"\033[38;2;255;160;122m"}Total{r}{"\033[48;2;25;25;25m"} -----------{r}")
+        for item in items:
+            # Sm cool ANSI formatting: https://ansi.tools/
+            if row % 2 == 0:
+                rowBG = "\033[48;2;25;25;25m"
+            else:
+                rowBG = "\033[48;2;40;40;40m"
+            row += 1
+            name, price, qty = item
+            # Bunch of formats bcs I can't convert to a string inside
+            # the formatting and don't want dashes right after a value
+            formatted_price = f"{price:.2f}"
+            formatted_qty = f"{qty}"
+            formatted_total = f"{price * qty:.2f}"
+            # Basically, interchanging bg colours for rows, and coloured text for columns!
+            # It is a bit messy code wise tho...
+            # \033[ command follows, ;2 RGB values, ;144;238;144 (values), m end of seq.
+            print(f"{rowBG}-----> {"\033[38;2;144;238;144m"}{name + " ":<25}{r}{rowBG}-"+
+                f" {"\033[38;2;216;191;216m"}{formatted_qty + " ":<10}{r}{rowBG}-" +
+                f"{"\033[38;2;255;204;153m"} ${formatted_price + " ":<7}{r}{rowBG}-"+
+                f"{"\033[38;2;255;160;122m"} ${formatted_total + " ":<16}{r}")
+
+
+if __name__ == "__main__":
+    view_user_orders(1)
+
+
