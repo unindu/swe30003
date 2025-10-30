@@ -7,22 +7,23 @@ class Inventory(ItemHolder):
 
     def list_items(self):
         rows = self.cursor.execute("""
-            SELECT i.name, i.desc, i.price, s.quantity
-            FROM items i
-            JOIN stock s ON i.id = s.id
-            WHERE s.order_id = -1 
-        """).fetchall()
+        SELECT items.name, items.desc, items.price, stock.quantity
+        FROM items
+        JOIN stock ON items.id = stock.id
+        WHERE stock.order_id = -1
+    """).fetchall()
 
         if not rows:
             print("\nInventory is empty.\n")
-            return
+            qreturn
 
-        print("\n--- INVENTORY ---")
-        print(f"{'Name':<15} {'Qty':<5} {'Price':<8} Description")
-        print("-" * 60)
-        for name, desc, price, qty in rows:
-            print(f"{name:<15} {qty:<5} ${price:<8.2f} {desc}")
-        print()
+    print("\n--- INVENTORY ---")
+    print(f"{'Name':<15} {'Qty':<5} {'Price':<8} Description")
+    print("-" * 60)
+    for name, desc, price, qty in rows:
+        print(f"{name:<15} {qty:<5} ${price:<8.2f} {desc}")
+    print()
+
 
 if __name__ == "__main__":
     inventory = Inventory()
