@@ -42,9 +42,11 @@ class Delivery:
     def schedule(self):
         
         # min address length is 10 char
-        if not self.address or len(self.address) < 10:  
-            return False
-            
+        if not self.address or len(self.address) <= 10:
+            print("Address is invalid, minimum of 10 characters")
+            print("The order may still be completed")
+            return
+
         self.status = "pending"
         self.tracking_number = f"DEL{self.order_id}"
         self.calculate_delivery_cost()
@@ -54,12 +56,11 @@ class Delivery:
         self.estimated_delivery = delivery_date.strftime("%Y-%m-%d 15:00")
         
         self._save_to_db()
-        return True
     
     # insert order_id, name, address, contact_phone, status, tracking_number, delivery_cost, estimated_delivery into the deliveries table
     def _save_to_db(self):
         self.db.execute("""
-            INSERT INTO deliveries (order_id, name, address, contact_phone, status, tracking_number, delivery_cost, estimated_delivery)
+            INSERT INTO deliveries (order_id, name, address, phone, status, tracking_number, delivery_cost, estimated_delivery)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (self.order_id, self.name, self.address, self.phone, self.status, self.tracking_number, self.delivery_cost, self.estimated_delivery), commit=True)
     
