@@ -80,20 +80,18 @@ class SalesReport:
 
     def orders(self):
         item_stat = self.db.execute("""
-            SELECT orders.order_id, orders.date, items.name, SUM(items.price)
-            FROM orders
-            JOIN stock ON stock.order_id = orders.order_id
-            JOIN items ON items.id = stock.id
-            WHERE stock.order_id != -1
-            GROUP BY orders.order_id
+            SELECT stock.order_id, orders.date, orders.total
+            FROM items 
+            JOIN stock on items.id = stock.id
+            JOIN orders on stock.order_id = orders.order_id
+            WHERE orders.order_id != -1
         """).fetchall()
         return item_stat
 
-    # Call and print all of the above
-    def generate_report(self):
-        pass
+
+
 
 
 if __name__ == "__main__":
     report = SalesReport()
-    print(report.items_by_order())
+    print(report.orders())
