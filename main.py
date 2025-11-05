@@ -51,6 +51,7 @@ def login_flow():
             print("Invalid selection")
 
 def staff_menu(user):
+    print(f"\n=== Hawthorn Express (Logged in as {user['username']}) ===")
     inventory = Inventory()
     while True:
         print("\n=== Staff Menu ===")
