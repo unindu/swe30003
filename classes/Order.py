@@ -19,7 +19,6 @@ class Order(ItemHolder):
         self.order_location = f"{user_id}_order"
         self.payment = None     
         self.delivery = None    
-        self.sales_report = SalesReport()
         self.db = DBManager()
         self._create_orders_table()
     
