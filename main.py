@@ -3,7 +3,7 @@ from classes.Account import Account, view_all_users
 from classes.Inventory import Inventory
 from classes.Cart import Cart
 from classes.Order import Order
-from classes.SalesReport import sales_report_menu
+from classes.SalesReport import SalesReport, sales_report_menu
 from classes.ItemHolder import ItemHolder
 
 ItemHolder().setup_db()
@@ -160,7 +160,9 @@ def main_menu(user):
 
         elif choice == "8":
             sr = SalesReport()
-            sr.view_user_orders(user["user_id"])
+            data = sr.user_orders(user["user_id"])
+            from classes.SalesReport import print_as_table
+            print_as_table(f"Orders for {user['username']}", ["Order ID", "Date", "Total", "Status"], data)
 
         elif choice == "9":
             break  # logout and return to login_flow()

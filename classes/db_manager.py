@@ -1,31 +1,27 @@
-# db_manager.py
 import sqlite3
-import pathlib
 
 class DBManager:
+    _connection = None
+    _cursor = None
+
     def __init__(self):
-        db_path = pathlib.Path(__file__).resolve().parent.parent / "inventory_database.db"
-        self.conn = sqlite3.connect(db_path)
-        self.conn.execute("PRAGMA foreign_keys = ON;")
-        self.conn.execute("PRAGMA journal_mode = WAL;")
-        self.cursor = self.conn.cursor()
+        if DBManager._connection is None:
+            DBManager._connection = sqlite3.connect("inventory_database.db", check_same_thread=False)
+            DBManager._connection.execute("PRAGMA foreign_keys = ON;")  # Always enable FKs
+            DBManager._cursor = DBManager._connection.cursor()
+
+        self.conn = DBManager._connection
+        self.cursor = DBManager._cursor
 
     def execute(self, query, params=(), commit=False):
-        self.cursor.execute(query, params)
+        result = self.cursor.execute(query, params)
         if commit:
             self.conn.commit()
-        return self.cursor
+        return result
 
     def fetchone(self, query, params=()):
-        self.cursor.execute(query, params)
-        return self.cursor.fetchone()
+        return self.cursor.execute(query, params).fetchone()
 
     def fetchall(self, query, params=()):
-        self.cursor.execute(query, params)
-        return self.cursor.fetchall()
+        return self.cursor.execute(query, params).fetchall()
 
-    def commit(self):
-        self.conn.commit()
-
-    def close(self):
-        self.conn.close()
