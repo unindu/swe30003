@@ -1,125 +1,136 @@
 from classes.db_manager import DBManager
 
 class ItemHolder:
+    """
+    Base class that provides DB access and item/stock manipulation.
+    All inventory, cart, and order operations rely on this shared setup.
+    """
+
     def __init__(self):
         self.db = DBManager()
         self.conn = self.db.conn
         self.cursor = self.db.cursor
 
-
     def setup_db(self):
+        """Creates all tables required for items, stock, carts and orders."""
 
-        # This creates the table for items and their descriptions
-        # It just holds item info basically
-        self.cursor.execute(
-            """
+        # Users table (needed before orders & carts)
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS accounts (
+                account_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT DEFAULT 'customer'
+            );
+        """)
+
+        # Items metadata
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS items (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
                 desc TEXT NOT NULL,
                 price REAL NOT NULL,
-                imagePath TEXT NOT NULL
-            )
-            """
-        )
+                category TEXT NOT NULL,
+                extra TEXT,
+                imagePath TEXT
+            );
+        """)
 
-        # This is a table for items and where they are
-        # iirc stockId is basically useless? But we need itemid to appear more
-        # than once in the table, so itemid can't be the primary key.
-        self.cursor.execute(
-            """
+        # Orders table (must exist before stock)
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS orders (
+                order_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                total REAL NOT NULL,
+                date TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                FOREIGN KEY(user_id) REFERENCES accounts(account_id)
+            );
+        """)
+
+        # Stock table (order_id = -1 means "Inventory")
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS stock (
-                stock_id INTEGER PRIMARY KEY,
+                stock_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 id INTEGER,
                 quantity INTEGER NOT NULL,
-                order_id INTEGER,
+                order_id INTEGER DEFAULT -1,
                 FOREIGN KEY(id) REFERENCES items(id) ON DELETE CASCADE,
-                FOREIGN KEY(order_id) REFERENCES orders(order_id) ON DELETE CASCADE,
                 UNIQUE(id, order_id)
-            )
-            """)
+            );
+        """)
 
-        self.cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS carts
-            (
-                cart_item_id INTEGER PRIMARY KEY,
-                item_id INTEGER,
+        # Cart storage per user
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS carts (
+                cart_item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER NOT NULL,
                 quantity INTEGER NOT NULL,
-                user_id INTEGER,
-                FOREIGN KEY (item_id) REFERENCES items (id),
-                FOREIGN KEY (user_id) REFERENCES accounts (account_id),
-                UNIQUE (item_id, user_id)
-            )
-            """)
+                user_id INTEGER NOT NULL,
+                FOREIGN KEY(item_id) REFERENCES items(id),
+                FOREIGN KEY(user_id) REFERENCES accounts(account_id),
+                UNIQUE(item_id, user_id)
+            );
+        """)
 
         self.conn.commit()
 
-    def add_item(self, name, desc, price, qty, image_path = "assets/images/none.png"):
-        self.cursor.execute(
-            # Insert or ignore, it silently drops it if it already the name already exists
-            # No two items should have the EXACT same name, so hopefully no duplicates
-            """
-            INSERT INTO items (name, desc, price, imagePath)
-            VALUES (?, ?, ?, ?)
+    def add_item(self, name, desc, price, qty, image_path="assets/images/none.png", category="food", extra=None):
+        """
+        Adds or updates an item and ensures inventory stock exists (order_id = -1).
+        """
+        # Insert or update item metadata
+        self.cursor.execute("""
+            INSERT INTO items (name, desc, price, category, extra, imagePath)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(name) DO UPDATE SET
-                desc = excluded.desc, price = excluded.price, imagePath = excluded.imagePath
-            """, (name, desc, price, image_path)
-        )
+                desc = excluded.desc,
+                price = excluded.price,
+                category = excluded.category,
+                extra = excluded.extra,
+                imagePath = excluded.imagePath;
+        """, (name, desc, price, category, extra, image_path))
 
-        # Also add the item to the stock table ONLY IF IT ISN'T THERE ALREADY
-        self.cursor.execute(
-            """
+        # Insert stock for inventory (-1) if not present
+        self.cursor.execute("""
             INSERT OR IGNORE INTO stock (id, quantity, order_id)
-            SELECT id, ?, -1 from items WHERE name = ?
-            """, (qty, name)
-        )
+            SELECT id, ?, -1 FROM items WHERE name = ?;
+        """, (qty, name))
 
         self.conn.commit()
 
+    def update_stock(self, item_name, change, order_id=-1):
+        """
+        Adjusts stock levels for an item at a specific order_id (default = inventory).
+        change can be positive (add) or negative (reduce).
+        """
+        item_id = self.cursor.execute("SELECT id FROM items WHERE name=?", (item_name,)).fetchone()
 
-    # change must be a positive or negative integer
-    def update_stock(self, item_name, change, order_id):
-        """
-        item_name: str - name of the item
-        change: int - positive or negative integer
-        location: str - name of location
-        To represent Inventory
-         for user itemHolders is <user_id>_cart or <user_id>_order
-        NEW - Foreign key for order_id to be passed in. If unrealted just leave it
-        """
-        item_id = self.cursor.execute(
-            """
-            SELECT id FROM items WHERE name = ?
-            """, (item_name,)
-        ).fetchone()[0]
+        if not item_id:
+            print("Item does not exist.")
+            return False
 
-        # Try and insert this new stock, *but* if it already exists
-        # (I.e. there is a conflict with the id, location unique rule)
-        # Then update the quantity
-        self.cursor.execute(
-        """
-        INSERT INTO stock (id, quantity, order_id)
-        VALUES (?, ?, ?)
-        ON CONFLICT(id, order_id)
-        DO UPDATE SET quantity = quantity + excluded.quantity
-        """, (item_id, change, order_id)
-        )
+        item_id = item_id[0]
+
+        self.cursor.execute("""
+            INSERT INTO stock (id, quantity, order_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(id, order_id)
+            DO UPDATE SET quantity = quantity + excluded.quantity;
+        """, (item_id, change, order_id))
 
         self.conn.commit()
+        return True
 
     def remove_item(self, item_name):
-        self.cursor.execute(
-            """
-            DELETE FROM items WHERE name = ?;
-            """, (item_name,)
-        )
-
+        """Deletes an item and cascades remove from carts/stock."""
+        self.cursor.execute("DELETE FROM items WHERE name=?", (item_name,))
         self.conn.commit()
 
 
 if __name__ == "__main__":
-    # Just to test making the table
     holder = ItemHolder()
     holder.setup_db()
-
+    print("Database setup complete.")

@@ -1,22 +1,20 @@
-# classes/Account.py
+import re
 import hashlib
 from classes.db_manager import DBManager
 
 class Account:
     """
-    Handles user account creation and authentication.
-
+    Manages user registration and login with basic validation and password hashing.
     """
 
     def __init__(self):
-        # Shared database connection (no direct sqlite calls in this class)
         self.db = DBManager()
         self._create_table()
+        self.seed_default_staff()
 
     def _create_table(self):
         """
-        Creates the accounts table if it does not already exist.
-        Includes UNIQUE constraints to prevent duplicate usernames or emails.
+        Ensures the accounts table exists.
         """
         self.db.execute("""
             CREATE TABLE IF NOT EXISTS accounts (
@@ -28,32 +26,52 @@ class Account:
             )
         """, commit=True)
 
+    # ----------------- Helpers ----------------- #
+
     def _hash(self, password):
-        """
-        Returns a SHA-256 hash of the password.
-        This prevents storing raw passwords in the database.
-        """
         return hashlib.sha256(password.encode()).hexdigest()
+
+    def _valid_email(self, email):
+        return re.match(r"[^@]+@[^@]+\.[^@]+", email)
+
+    # ----------------- Core Features ----------------- #
 
     def register(self, username, email, password, role="customer"):
         """
-        Registers a new user with hashed password.
-        If the username or email is already taken, the UNIQUE constraint will trigger an exception.
+        Register a new user with validation.
         """
+        # --- Validation --- #
+        if len(username.strip()) < 3:
+            print("Username must be at least 3 characters.")
+            return
+
+        if not self._valid_email(email):
+            print("Invalid email format. Example: name@example.com")
+            return
+
+        if len(password) < 5:
+            print("Password must be at least 5 characters.")
+            return
+
         hashed_pw = self._hash(password)
+
         try:
             self.db.execute("""
                 INSERT INTO accounts (username, email, password, role)
                 VALUES (?, ?, ?, ?)
-            """, (username, email, hashed_pw, role), commit=True)
+            """, (username.strip(), email.strip(), hashed_pw, role), commit=True)
+
             print(f"Account created for {username}")
+
         except Exception as e:
-            print(f"Registration failed: {e}")
+            if "UNIQUE constraint" in str(e):
+                print("Username or Email already exists.")
+            else:
+                print(f"Registration failed: {e}")
 
     def login(self, username, password):
         """
-        Authenticates the user by verifying username and hashed password.
-        Returns a user session dictionary if successful, otherwise None.
+        Authenticate user and return session dict.
         """
         hashed_pw = self._hash(password)
 
@@ -70,14 +88,29 @@ class Account:
         print("Invalid username or password.")
         return None
 
+    # ----------------- Staff Seeding ----------------- #
 
+    def seed_default_staff(self):
+        """
+        Ensures a staff account exists.
+        """
+        existing = self.db.fetchone("SELECT * FROM accounts WHERE role='staff'")
+        if not existing:
+            hashed_pw = self._hash("staff123")
+            self.db.execute("""
+                INSERT INTO accounts (username, email, password, role)
+                VALUES (?, ?, ?, ?)
+            """, ("staff", "staff@hexpress.com", hashed_pw, "staff"), commit=True)
+            print("[INFO] Default staff account created (username: staff | password: staff123)")
+
+
+# ----------------- Utility: View all Users (Staff Only) ----------------- #
 
 def view_all_users():
     db = DBManager()
-    users = db.execute("""
-    SELECT * FROM accounts
-    """).fetchall()
-    print("----- User ID --- Username -------- Email Address ------------------ Role -----")
-    for user in users:
-        user_id, username, email, password, role = user
-        print(f"----> User #{user_id:<4}- {username:<15} - {email:<30} - {role:<10}")
+    users = db.execute("SELECT * FROM accounts").fetchall()
+    print("\n---- Registered Users ----")
+    print("ID | Username        | Email                        | Role")
+    print("-------------------------------------------------------------")
+    for account_id, username, email, pw, role in users:
+        print(f"{account_id:<3}| {username:<15}| {email:<28}| {role}")
