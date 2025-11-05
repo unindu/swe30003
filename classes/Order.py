@@ -52,7 +52,7 @@ class Order(ItemHolder):
         order_id = self._create_order(total)
         
         # Process payment, if failed payment (false), exit
-        if not self._process_payment(order_id, total, payment_method):
+        if not self._process_payment(order_id, total, payment_method.lower()):
             return False   
         
         # Move items from cart to order (location updated in single query)

@@ -5,12 +5,11 @@ from classes.Cart import Cart
 from classes.Order import Order
 from classes.SalesReport import SalesReport, sales_report_menu
 from classes.ItemHolder import ItemHolder
+from classes.Delivery import Delivery
 
 ItemHolder().setup_db()
-
-# Ensure staff exists
-Account()._create_table()
 Account().seed_default_staff()
+Delivery.ensure_table()
 
 
 """
@@ -68,7 +67,8 @@ def staff_menu(user):
         print("3. Adjust Stock")
         print("4. View Users")
         print("5. View Sales Report")
-        print("6. Logout")
+        print("6. View Deliveries")
+        print("7. Logout")
         choice = input("> ")
 
         match choice:
@@ -100,6 +100,19 @@ def staff_menu(user):
             case "5":
                 sales_report_menu()
             case "6":
+                deliveries = Delivery.list_all()
+                if not deliveries:
+                    print("\nNo deliveries found.\n")
+                else:
+                    print("\n=== All Deliveries ===\n")
+                    print(f"{'Del ID':<8} {'Order ID':<9} {'Name':<12} {'Status':<12} {'ETA':<18} {'Cost':<8}")
+                    print("-" * 70)
+                    for d in deliveries:
+                        delivery_id, order_id, name, address, phone, status, tracking, cost, eta = d
+                        print(f"{delivery_id:<8} {order_id:<9} {name[:12]:<12} {status:<12} {eta:<18} ${cost:<8.2f}")
+
+                input("\nPress ENTER to continue...")
+            case "7":
                 break
             case _:
                 print("Invalid selection")
@@ -156,7 +169,22 @@ def main_menu(user):
             name = input("Name: ")
             address = input("Address: ")
             phone = input("Phone: ")
-            order.checkout(name, address, phone)
+
+            print("\nSelect Payment Method:")
+            print("1. Credit Card")
+            print("2. Debit Card")
+            print("3. PayPal")
+            method = input("> ").strip()
+
+            method_map = {
+                "1": "credit_card",
+                "2": "debit_card",
+                "3": "paypal"
+            }
+            payment_method = method_map.get(method, "credit_card")  # fallback default
+
+            order.checkout(name, address, phone, payment_method)
+
 
         elif choice == "8":
             sr = SalesReport()
