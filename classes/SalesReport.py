@@ -1,15 +1,11 @@
-import datetime
-
-from classes import Item
 from classes.db_manager import DBManager
-
 
 class SalesReport:
 
     def __init__(self):
         self.db = DBManager()
 
-    def print_as_table(self, title, keys, data, size = 80):
+    def print_as_table(self, title, keys, data, size = 100):
         """
         Data is the data
         Columns should be an int list, listing the indexes the columns should appear in
@@ -52,14 +48,13 @@ class SalesReport:
         # Print out the key, do some fun calculations to have them evenly spread
         num_keys = len(keys)
         key_string = f"{dw}-----"
-        key_space = ((size - 20) // num_keys) - 1
-        key_spacing = (size - 20) // key_space
-        spare_space = size - ((key_space * num_keys) + (key_spacing * (num_keys - 1)) + 10 + (num_keys * 2))
-        print(key_space, key_spacing, spare_space)
+        key_space = (size - 30) // num_keys
+        key_spacing = (size - 30) % num_keys
+        spare_space = size - (10 + (key_space * num_keys) + (key_spacing * num_keys - 1) + (num_keys * 2) + (num_keys - 1))
         for i, key in enumerate(keys):
-            key_string += f"{colour_list[i % len(colour_list)]} {key:^{key_space}} {r}"
+            key_string += f"{colour_list[i % len(colour_list)]} {key:^{key_space}.{key_space}} {r}"
             if i != num_keys - 1:
-                key_string += f"{dw}{'-' * key_spacing}"
+                key_string += f"{dw}{'-' + '-' * key_spacing}"
         key_string += f"{dw}-{"-" * spare_space}----{r}"
         print(f"{key_string:<{size}}{r}")
 
@@ -85,7 +80,7 @@ class SalesReport:
                     item = f"${item:.2f}"
                 row_string += f"{colour_list[col % len(colour_list)]} {item:<{key_space}} {r}"
                 if col != col_count - 1:
-                    row_string += f"{bg}{'-' * key_spacing}"
+                    row_string += f"{bg}{'-' + '-' * key_spacing}"
             row_string += f"{bg}-{"-" * spare_space}----{r}"
             print(row_string)
 
@@ -101,7 +96,7 @@ class SalesReport:
 
         # The sql query handily sums up all the stock for each item
         item_stats = self.db.execute("""
-            SELECT items.id, items.name, items.price, SUM(stock.quantity) as item_quantity
+            SELECT items.id, items.name, items.price, SUM(stock.quantity) as item_quantity, items.price * SUM(stock.quantity)
             FROM items
             JOIN stock ON items.id = stock.id
             WHERE stock.order_id != -1
@@ -111,13 +106,13 @@ class SalesReport:
         return item_stats
 
     # Return the stats for one item specifically.
-    def stats_by_items(self, item):
+    def stats_by_item(self, item):
         """
         :param item:
-        :returns order_id, date, item_id, name, price quantity:
+        :returns order_id, date, price, quantity, revenue:
         """
         item_stat = self.db.execute("""
-            SELECT orders.order_id, orders.date, items.id, items.name, items.price, stock.quantity
+            SELECT orders.order_id, orders.date, items.price, stock.quantity, items.price * stock.quantity
             FROM orders
             JOIN stock ON orders.order_id = stock.order_id
             JOIN items ON items.id = stock.id
@@ -129,10 +124,10 @@ class SalesReport:
     # Show all the items sold *sorted by* date
     def items_by_date(self):
         """
-        :returns id, date, name, sum:
+        :return id, date, name, sum:
         """
         item_stat = self.db.execute("""
-            SELECT items.id, date(orders.date) AS date, items.name, SUM(stock.quantity)
+            SELECT date(orders.date) AS date, items.id, items.name, SUM(stock.quantity)
             FROM orders
             JOIN stock ON stock.order_id = orders.order_id
             JOIN items ON items.id = stock.id
@@ -147,10 +142,10 @@ class SalesReport:
     def items_on_date(self, date = "2025-10-30"):
         """
         The date needs to be a perfect string as YYYY-MM-DD
-        :returns date, id, name, amount, made:
+        :returns id, name, amount, made:
         """
         item_stat = self.db.execute("""
-            SELECT items.id, items.name, SUM(stock.quantity), items.price * SUM(stock.quantity)
+            SELECT items.id, items.name, items.price, SUM(stock.quantity), items.price * SUM(stock.quantity)
             FROM orders
             JOIN stock ON stock.order_id = orders.order_id
             JOIN items ON items.id = stock.id
@@ -163,7 +158,7 @@ class SalesReport:
 
     def orders(self):
         """
-        :returns order_id, date, total:
+        :return order_id, date, total:
         """
         item_stat = self.db.execute("""
             SELECT stock.order_id, orders.date, orders.total
@@ -219,11 +214,75 @@ class SalesReport:
                       f"{"\033[38;2;255;204;153m"} ${formatted_price + " ":<7}{r}{rowBG}-" +
                       f"{"\033[38;2;255;160;122m"} ${formatted_total + " ":<16}{r}")
 
+def sales_report_menu():
+    report = SalesReport()
+    while True:
+        print("""Please select what you would like to see
+        1. Item Statistics for All Time
+        2. Items Statistics for Date
+        3. Specific Item Statistics
+        4. All orders
+        5. Specific User's Order
+        6. Items ordered by date
+        7. Exit""")
+        answer = input("> ")
+        data = []
+        keys = []
+        title = ""
+        match (answer):
+            case "1":
+                data = report.item_statistics()
+                keys = ["Item ID", "Item Name", "Unit Price", "Amount sold", "Revenue"]
+                title = "Item Statistics for All Time"
+                report.print_as_table(title, keys, data)
+
+            case "2":
+                date = input("Please enter date in YYYY-MM-DD format: ").strip()
+                data = report.items_on_date(date)
+                keys = ["Item ID", "Item Name", "Unit Price", "Amount sold", "Revenue"]
+                title = f"Item Statistics for {date}"
+                report.print_as_table(title, keys, data)
+
+            case "3":
+                item = input("Please enter an item's exact name: ").strip()
+                data = report.stats_by_item(item)
+                keys = ["Order ID", "Order Date", "Unit Price", "Amount sold", "Revenue"]
+                title = f"All Orders"
+                report.print_as_table(title, keys, data)
+
+            case "4":
+                data = report.orders()
+                keys = ["Order ID", "Order Date", "Total Price"]
+                title = f"All orders"
+                report.print_as_table(title, keys, data)
+
+            case "5":
+                user = "0"
+                while True:
+                    user = input("Please enter a user's id: ").strip()
+                    try:
+                        int(user)
+                        break
+                    except ValueError:
+                        print("Please enter a number.")
+                        continue
+                report.view_user_orders(int(user))
+
+            case "6":
+                data = report.items_by_date()
+                keys = ["Date", "Item ID", "Name", "Revenue"]
+                title = f"All items ordered by date"
+                report.print_as_table(title, keys, data)
+
+            case "7":
+                break
+
+            case _:
+                print("Invalid selection")
+
+        input("Press ENTER when done")
+        print()
+
 
 if __name__ == "__main__":
-    report = SalesReport()
-    data = report.items_on_date()
-    report.print_as_table(f"Items sold on {"2025-10-30"}",
-                          ["Item ID", "Item Name", "Number sold", "Revenue"],
-                          data
-                          )
+    sales_report_menu()

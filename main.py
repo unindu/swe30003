@@ -2,7 +2,8 @@
 from classes.Account import Account, view_all_users
 from classes.Inventory import Inventory
 from classes.Cart import Cart
-from classes.Order import Order, view_user_orders
+from classes.Order import Order
+from classes.SalesReport import sales_report_menu, SalesReport
 
 """
 Main CLI controller for Hawthorn Express.
@@ -57,7 +58,7 @@ def staff_menu(user):
         print("2. Add Item")
         print("3. Adjust Stock")
         print("4. View Users")
-        print("5. View Orders of User")
+        print("5. View Sales Report")
         print("6. Logout")
         choice = input("> ")
 
@@ -77,11 +78,7 @@ def staff_menu(user):
             case "4":
                 view_all_users()
             case "5":
-                user_id = input("User ID: ")
-                if int(user_id) == user_id:
-                    print("Invalid user ID")
-                    continue
-                view_user_orders(int(user_id))
+                sales_report_menu()
             case "6":
                 break
             case _:
@@ -133,7 +130,8 @@ def main_menu(user):
             phone = input("Phone: ")
             order.checkout(name, address, phone)
         elif choice == "6":
-            view_user_orders(user["user_id"]) 
+            sr = SalesReport()
+            SalesReport.view_user_orders(user["user_id"])
 
         elif choice == "7":
             break  # logout and return to login_flow()

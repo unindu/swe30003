@@ -15,14 +15,14 @@ class Inventory(ItemHolder):
 
         if not rows:
             print("\nInventory is empty.\n")
-            qreturn
+            return
 
-    print("\n--- INVENTORY ---")
-    print(f"{'Name':<15} {'Qty':<5} {'Price':<8} Description")
-    print("-" * 60)
-    for name, desc, price, qty in rows:
-        print(f"{name:<15} {qty:<5} ${price:<8.2f} {desc}")
-    print()
+        print("\n--- INVENTORY ---")
+        print(f"{'Name':<15} {'Qty':<5} {'Price':<8} Description")
+        print("-" * 60)
+        for name, desc, price, qty in rows:
+            print(f"{name:<15} {qty:<5} ${price:<8.2f} {desc}")
+        print()
 
 
 if __name__ == "__main__":
