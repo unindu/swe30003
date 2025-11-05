@@ -14,6 +14,7 @@ class SalesReport:
         Data is the data
         Columns should be an int list, listing the indexes the columns should appear in
         """
+        col_count = len(data[0])
 
         pass
 
@@ -30,8 +31,6 @@ class SalesReport:
             WHERE stock.order_id != -1
             GROUP BY items.id
         """).fetchall()
-
-
 
         return item_stats
 
@@ -58,9 +57,8 @@ class SalesReport:
             GROUP BY date(orders.date), items.id
             ORDER BY date(orders.date) DESC 
         """).fetchall()
+
         return item_stat
-
-
 
     # Show all the items sold on a date
     def items_on_date(self, date = "2025-10-30"):
@@ -78,6 +76,7 @@ class SalesReport:
         """, (date,)).fetchall()
         return item_stat
 
+
     def orders(self):
         item_stat = self.db.execute("""
             SELECT stock.order_id, orders.date, orders.total
@@ -88,8 +87,49 @@ class SalesReport:
         """).fetchall()
         return item_stat
 
-
-
+    def view_user_orders(userId: int):
+        db = DBManager()
+        user_orders = db.execute("""
+                                 SELECT *
+                                 FROM orders
+                                 WHERE user_id = ?
+                                 ORDER BY date DESC
+                                 """, (userId,)).fetchall()
+        r = "\033[0m"  # This is the colour key to reset the colour
+        # Do some nice formating with every order, from earliest to latest
+        for order in user_orders:
+            row = 1
+            # First, print the order info
+            order_id, user_id, total, date, status = order
+            print(f"{"\033[48;2;60;60;60m"}{f"Order #{order_id:} - Date: {date} - Status: {status}":<73}{r}")
+            items = db.execute("""
+                               SELECT items.name, items.price, stock.quantity
+                               FROM stock
+                                        JOIN items ON stock.id = items.id
+                               WHERE stock.order_id = ?
+                               """, (order_id,)).fetchall()
+            print(
+                f"{"\033[48;2;25;25;25m"}------ {"\033[38;2;144;238;144m"}Item Name{r}{"\033[48;2;25;25;25m"} ---------------- {"\033[38;2;216;191;216m"}Quantity{r}{"\033[48;2;25;25;25m"} -- {"\033[38;2;255;204;153m"}Price{r}{"\033[48;2;25;25;25m"} --- {"\033[38;2;255;160;122m"}Total{r}{"\033[48;2;25;25;25m"} -----------{r}")
+            for item in items:
+                # Cool ANSI formatting: https://ansi.tools/
+                if row % 2 == 0:
+                    rowBG = "\033[48;2;25;25;25m"
+                else:
+                    rowBG = "\033[48;2;40;40;40m"
+                row += 1
+                name, price, qty = item
+                # Bunch of formats bcs I can't convert to a string inside
+                # the formatting and don't want dashes right after a value
+                formatted_price = f"{price:.2f}"
+                formatted_qty = f"{qty}"
+                formatted_total = f"{price * qty:.2f}"
+                # Basically, interchanging bg colours for rows, and coloured text for columns!
+                # It is a bit messy code wise tho...
+                # \033[ command follows, ;2 RGB values, ;144;238;144 (values), m end of seq.
+                print(f"{rowBG}-----> {"\033[38;2;144;238;144m"}{name + " ":<25}{r}{rowBG}-" +
+                      f" {"\033[38;2;216;191;216m"}{formatted_qty + " ":<10}{r}{rowBG}-" +
+                      f"{"\033[38;2;255;204;153m"} ${formatted_price + " ":<7}{r}{rowBG}-" +
+                      f"{"\033[38;2;255;160;122m"} ${formatted_total + " ":<16}{r}")
 
 
 if __name__ == "__main__":
