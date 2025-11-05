@@ -208,7 +208,7 @@ def view_user_orders(userId: int):
         """, (order_id,)).fetchall()
         print(f"{"\033[48;2;25;25;25m"}------ {"\033[38;2;144;238;144m"}Item Name{r}{"\033[48;2;25;25;25m"} ---------------- {"\033[38;2;216;191;216m"}Quantity{r}{"\033[48;2;25;25;25m"} -- {"\033[38;2;255;204;153m"}Price{r}{"\033[48;2;25;25;25m"} --- {"\033[38;2;255;160;122m"}Total{r}{"\033[48;2;25;25;25m"} -----------{r}")
         for item in items:
-            # Sm cool ANSI formatting: https://ansi.tools/
+            # Cool ANSI formatting: https://ansi.tools/
             if row % 2 == 0:
                 rowBG = "\033[48;2;25;25;25m"
             else:

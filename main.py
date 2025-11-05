@@ -133,7 +133,7 @@ def main_menu(user):
             phone = input("Phone: ")
             order.checkout(name, address, phone)
         elif choice == "6":
-            view_user_orders(user["user_id"])
+            view_user_orders(user["user_id"]) 
 
         elif choice == "7":
             break  # logout and return to login_flow()
