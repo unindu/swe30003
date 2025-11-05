@@ -131,7 +131,7 @@ def main_menu(user):
             order.checkout(name, address, phone)
         elif choice == "6":
             sr = SalesReport()
-            SalesReport.view_user_orders(user["user_id"])
+            sr.view_user_orders(user["user_id"])
 
         elif choice == "7":
             break  # logout and return to login_flow()

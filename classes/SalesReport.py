@@ -257,7 +257,6 @@ def sales_report_menu():
                 report.print_as_table(title, keys, data)
 
             case "5":
-                user = "0"
                 while True:
                     user = input("Please enter a user's id: ").strip()
                     try:
@@ -270,7 +269,7 @@ def sales_report_menu():
 
             case "6":
                 data = report.items_by_date()
-                keys = ["Date", "Item ID", "Name", "Revenue"]
+                keys = ["Date", "Item ID", "Name", "Amount Sold"]
                 title = f"All items ordered by date"
                 report.print_as_table(title, keys, data)
 
