@@ -1,209 +1,135 @@
 from classes.db_manager import DBManager
 
+def print_as_table(title, headers, rows):
+    print(f"\n=== {title} ===\n")
+    if not rows:
+        print("No data available.\n")
+        return
+    
+    # Header row
+    print(" | ".join(f"{h:<20}" for h in headers))
+    print("-" * (len(headers) * 23))
+
+    # Data rows
+    for row in rows:
+        print(" | ".join(f"{str(col):<20}" for col in row))
+    print()
+
 class SalesReport:
     """
-    Provides data retrieval for sales analytics.
-    UI formatting (CLI or Flask) will be done separately.
+    Generates basic sales analytics using the existing schema:
+    - items
+    - stock
+    - orders
     """
     def __init__(self):
         self.db = DBManager()
 
-    def __init__(self):
-        self.db = DBManager()
-
-    # Count of all items sold ever
     def item_statistics(self):
         """
-        :returns id, name, price, num sold, total price:
+        Returns total sold per item and revenue generated.
+        Only counts stock tied to completed orders (order_id != -1)
         """
-        # Want to look in orders to get all the items
-        # WIth all those orders, look at the items
-
-        # The sql query handily sums up all the stock for each item
-        item_stats = self.db.execute("""
-            SELECT items.id, items.name, items.price, SUM(stock.quantity) as item_quantity, items.price * SUM(stock.quantity)
-            FROM items
-            JOIN stock ON items.id = stock.id
+        return self.db.execute("""
+            SELECT items.id, items.name, items.price, 
+                   SUM(stock.quantity) AS qty_sold,
+                   (items.price * SUM(stock.quantity)) AS revenue
+            FROM stock
+            JOIN items ON stock.id = items.id
             WHERE stock.order_id != -1
             GROUP BY items.id
+            ORDER BY revenue DESC
         """).fetchall()
 
-        return item_stats
-
-    # Return the stats for one item specifically.
-    def stats_by_item(self, item):
-        """
-        :param item:
-        :returns order_id, date, price, quantity, revenue:
-        """
-        item_stat = self.db.execute("""
-            SELECT orders.order_id, orders.date, items.price, stock.quantity, items.price * stock.quantity
-            FROM orders
-            JOIN stock ON orders.order_id = stock.order_id
-            JOIN items ON items.id = stock.id
-            WHERE stock.order_id != -1 AND items.name = ?
-        """, (item,)).fetchall()
-
-        return item_stat
-
-    # Show all the items sold *sorted by* date
-    def items_by_date(self):
-        """
-        :return id, date, name, sum:
-        """
-        item_stat = self.db.execute("""
-            SELECT date(orders.date) AS date, items.id, items.name, SUM(stock.quantity)
-            FROM orders
-            JOIN stock ON stock.order_id = orders.order_id
-            JOIN items ON items.id = stock.id
+    def items_on_date(self, date):
+        return self.db.execute("""
+            SELECT items.id, items.name, items.price,
+                   SUM(stock.quantity) AS qty_sold,
+                   items.price * SUM(stock.quantity) AS revenue
+            FROM stock
+            JOIN items ON stock.id = items.id
+            JOIN orders ON stock.order_id = orders.order_id
             WHERE stock.order_id != -1
-            GROUP BY date(orders.date), items.id
-            ORDER BY date(orders.date) DESC 
-        """).fetchall()
-
-        return item_stat
-
-    # Show all the items sold on a date
-    def items_on_date(self, date = "2025-10-30"):
-        """
-        The date needs to be a perfect string as YYYY-MM-DD
-        :returns id, name, amount, made:
-        """
-        item_stat = self.db.execute("""
-            SELECT items.id, items.name, items.price, SUM(stock.quantity), items.price * SUM(stock.quantity)
-            FROM orders
-            JOIN stock ON stock.order_id = orders.order_id
-            JOIN items ON items.id = stock.id
-            WHERE stock.order_id != -1 AND date(orders.date) = date(?)
-            GROUP BY date(orders.date), items.id
-            ORDER BY date(orders.date) DESC
+              AND DATE(orders.date) = DATE(?)
+            GROUP BY items.id
+            ORDER BY qty_sold DESC
         """, (date,)).fetchall()
-        return item_stat
 
+    def stats_by_item(self, item_name):
+        return self.db.execute("""
+            SELECT orders.order_id, orders.date, items.price, stock.quantity,
+                   (items.price * stock.quantity) AS revenue
+            FROM stock
+            JOIN items ON stock.id = items.id
+            JOIN orders ON stock.order_id = orders.order_id
+            WHERE stock.order_id != -1 AND items.name = ?
+            ORDER BY orders.date DESC
+        """, (item_name,)).fetchall()
 
-    def orders(self):
+    def orders_summary(self):
         """
-        :return order_id, date, total:
+        Returns every order and total price.
         """
-        item_stat = self.db.execute("""
-            SELECT stock.order_id, orders.date, orders.total
-            FROM items 
-            JOIN stock on items.id = stock.id
-            JOIN orders on stock.order_id = orders.order_id
-            WHERE orders.order_id != -1
-            GROUP BY orders.order_id
-            ORDER BY orders.order_id DESC 
+        return self.db.execute("""
+            SELECT order_id, date, total
+            FROM orders
+            WHERE order_id != -1
+            ORDER BY date DESC
         """).fetchall()
-        return item_stat
 
-    def view_user_orders(self, user_id: int = 0):
-        user_orders = self.db.execute("""
-             SELECT *
-             FROM orders
-             WHERE user_id = ?
-             ORDER BY date DESC
-                                 """, (user_id,)).fetchall()
-        r = "\033[0m"  # This is the colour key to reset the colour
-        # Do some nice formating with every order, from earliest to latest
-        for order in user_orders:
-            row = 1
-            # First, print the order info
-            order_id, user_id, total, date, status = order
-            print(f"{"\033[48;2;60;60;60m"}{f"Order #{order_id:} - Date: {date} - Status: {status}":<73}{r}")
-            items = self.db.execute("""
-                               SELECT items.name, items.price, stock.quantity
-                               FROM stock
-                                        JOIN items ON stock.id = items.id
-                               WHERE stock.order_id = ?
-                               """, (order_id,)).fetchall()
-            print(
-                f"{"\033[48;2;25;25;25m"}------ {"\033[38;2;144;238;144m"}Item Name{r}{"\033[48;2;25;25;25m"} ---------------- {"\033[38;2;216;191;216m"}Quantity{r}{"\033[48;2;25;25;25m"} -- {"\033[38;2;255;204;153m"}Price{r}{"\033[48;2;25;25;25m"} --- {"\033[38;2;255;160;122m"}Total{r}{"\033[48;2;25;25;25m"} -----------{r}")
-            for item in items:
-                # Cool ANSI formatting: https://ansi.tools/
-                if row % 2 == 0:
-                    rowBG = "\033[48;2;25;25;25m"
-                else:
-                    rowBG = "\033[48;2;40;40;40m"
-                row += 1
-                name, price, qty = item
-                # Bunch of formats bcs I can't convert to a string inside
-                # the formatting and don't want dashes right after a value
-                formatted_price = f"{price:.2f}"
-                formatted_qty = f"{qty}"
-                formatted_total = f"{price * qty:.2f}"
-                # Basically, interchanging bg colours for rows, and coloured text for columns!
-                # It is a bit messy code wise tho...
-                # \033[ command follows, ;2 RGB values, ;144;238;144 (values), m end of seq.
-                print(f"{rowBG}-----> {"\033[38;2;144;238;144m"}{name + " ":<25}{r}{rowBG}-" +
-                      f" {"\033[38;2;216;191;216m"}{formatted_qty + " ":<10}{r}{rowBG}-" +
-                      f"{"\033[38;2;255;204;153m"} ${formatted_price + " ":<7}{r}{rowBG}-" +
-                      f"{"\033[38;2;255;160;122m"} ${formatted_total + " ":<16}{r}")
+    def user_orders(self, user_id):
+        """
+        Returns all orders placed by a specific user.
+        """
+        return self.db.execute("""
+            SELECT order_id, date, total, status
+            FROM orders
+            WHERE user_id = ?
+            ORDER BY date DESC
+        """, (user_id,)).fetchall()
+
 
 def sales_report_menu():
     report = SalesReport()
+
     while True:
-        print("""Please select what you would like to see
-        1. Item Statistics for All Time
-        2. Items Statistics for Date
-        3. Specific Item Statistics
-        4. All orders
-        5. Specific User's Order
-        6. Items ordered by date
-        7. Exit""")
-        answer = input("> ")
-        match answer:
+        print("""
+=== SALES REPORT MENU ===
+1. Item Statistics (All Time)
+2. Item Sales on a Specific Date
+3. Sales for a Specific Item
+4. All Orders Summary
+5. Orders by User
+6. Back
+""")
+        choice = input("> ").strip()
+
+        match choice:
             case "1":
                 data = report.item_statistics()
-                keys = ["Item ID", "Item Name", "Unit Price", "Amount sold", "Revenue"]
-                title = "Item Statistics for All Time"
-                print_as_table(title, keys, data)
+                print_as_table("Item Sales (All Time)", ["ID", "Name", "Price", "Qty Sold", "Revenue"], data)
 
             case "2":
-                date = input("Please enter date in YYYY-MM-DD format: ").strip()
+                date = input("Enter date (YYYY-MM-DD): ").strip()
                 data = report.items_on_date(date)
-                keys = ["Item ID", "Item Name", "Unit Price", "Amount sold", "Revenue"]
-                title = f"Item Statistics for {date}"
-                print_as_table(title, keys, data)
+                print_as_table(f"Sales on {date}", ["ID", "Name", "Price", "Qty Sold", "Revenue"], data)
 
             case "3":
-                item = input("Please enter an item's exact name: ").strip()
+                item = input("Item Name: ").strip()
                 data = report.stats_by_item(item)
-                keys = ["Order ID", "Order Date", "Unit Price", "Amount sold", "Revenue"]
-                title = f"All Orders"
-                print_as_table(title, keys, data)
+                print_as_table(f"Sales for {item}", ["Order ID", "Date", "Price", "Qty", "Revenue"], data)
 
             case "4":
-                data = report.orders()
-                keys = ["Order ID", "Order Date", "Total Price"]
-                title = f"All orders"
-                print_as_table(title, keys, data)
+                data = report.orders_summary()
+                print_as_table("All Orders", ["Order ID", "Date", "Total Price"], data)
 
             case "5":
-                while True:
-                    user = input("Please enter a user's id: ").strip()
-                    try:
-                        int(user)
-                        break
-                    except ValueError:
-                        print("Please enter a number.")
-                        continue
-                report.view_user_orders(int(user))
+                user = input("Enter User ID: ").strip()
+                data = report.user_orders(user)
+                print_as_table(f"Orders by User #{user}", ["Order ID", "Date", "Total", "Status"], data)
 
             case "6":
-                data = report.items_by_date()
-                keys = ["Date", "Item ID", "Name", "Amount Sold"]
-                title = f"All items ordered by date"
-                print_as_table(title, keys, data)
-
-            case "7":
                 break
 
             case _:
-                print("Invalid selection")
-
-        input("Press ENTER when done")
-        print()
-
-
-if __name__ == "__main__":
-    sales_report_menu()
+                print("Invalid option.\n")

@@ -3,7 +3,15 @@ from classes.Account import Account, view_all_users
 from classes.Inventory import Inventory
 from classes.Cart import Cart
 from classes.Order import Order
-from classes.SalesReport import sales_report_menu, SalesReport
+from classes.SalesReport import sales_report_menu
+from classes.ItemHolder import ItemHolder
+
+ItemHolder().setup_db()
+
+# Ensure staff exists
+Account()._create_table()
+Account().seed_default_staff()
+
 
 """
 Main CLI controller for Hawthorn Express.
@@ -71,7 +79,18 @@ def staff_menu(user):
                 desc = input("Description: ")
                 price = float(input("Price: "))
                 qty = int(input("Quantity: "))
-                inventory.add_item(name, desc, price, qty)
+
+                print("Category (food/alcohol): ", end="")
+                category = input().strip().lower()
+
+                extra = None
+                if category == "food":
+                    extra = input("Best before date (e.g., 2025-12-01): ")
+                elif category == "alcohol":
+                    extra = input("Alcohol % (e.g., 4.5%): ")
+
+                inventory.add_item(name, desc, price, qty, category=category, extra=extra)
+
             case "3":
                 name = input("Item name: ")
                 qty = int(input("Quantity: "))
@@ -97,32 +116,40 @@ def main_menu(user):
 
     while True:
         print(f"\n=== Hawthorn Express (Logged in as {user['username']}) ===")
-        print("1. Browse")
-        print("2. Add to Cart")
-        print("3. View Cart")
-        print("4. Remove from Cart")
-        print("5. Checkout")
-        print("6. Check past Orders")
-        print("7. Logout")
+        print("1. Browse All")
+        print("2. Browse Food Only")
+        print("3. Browse Alcohol Only")
+        print("4. Add to Cart")
+        print("5. View Cart")
+        print("6. Remove from Cart")
+        print("7. Checkout")
+        print("8. Check past Orders")
+        print("9. Logout")
         choice = input("> ")
 
         if choice == "1":
             inventory.list_items()
 
         elif choice == "2":
-            item = input("Item name: ")
-            qty = int(input("Quantity: "))
-            cart.add_to_cart(item, qty)
+            inventory.list_items_by_category("food")
 
         elif choice == "3":
-            cart.view_cart()
+            inventory.list_items_by_category("alcohol")
 
         elif choice == "4":
             item = input("Item name: ")
             qty = int(input("Quantity: "))
-            cart.remove_from_cart(item, qty)
+            cart.add_to_cart(item, qty)
 
         elif choice == "5":
+            cart.view_cart()
+
+        elif choice == "6":
+            item = input("Item name: ")
+            qty = int(input("Quantity: "))
+            cart.remove_from_cart(item, qty)
+
+        elif choice == "7":
             # The only way a user could have a pending order is via crash
             # or exit, so if they have a pending one, delete it.
             print("\nEnter delivery details:")
@@ -130,11 +157,12 @@ def main_menu(user):
             address = input("Address: ")
             phone = input("Phone: ")
             order.checkout(name, address, phone)
-        elif choice == "6":
+
+        elif choice == "8":
             sr = SalesReport()
             sr.view_user_orders(user["user_id"])
 
-        elif choice == "7":
+        elif choice == "9":
             break  # logout and return to login_flow()
 
         else:
