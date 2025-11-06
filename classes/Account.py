@@ -4,7 +4,8 @@ from classes.db_manager import DBManager
 
 class Account:
     """
-    Manages user registration and login with basic validation and password hashing.
+    Handles account creation, secure password storage, and user authentication.
+    Provides basic validation and seeds a default staff account for system access.
     """
 
     def __init__(self):
@@ -13,9 +14,7 @@ class Account:
         self.seed_default_staff()
 
     def _create_table(self):
-        """
-        Ensures the accounts table exists.
-        """
+        """Creates the accounts table if it does not already exist."""
         self.db.execute("""
             CREATE TABLE IF NOT EXISTS accounts (
                 account_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,21 +25,22 @@ class Account:
             )
         """, commit=True)
 
-    # ----------------- Helpers ----------------- #
+    # -------- Password + Input Validation -------- #
 
     def _hash(self, password):
+        """Returns a secure SHA-256 hash of the password."""
         return hashlib.sha256(password.encode()).hexdigest()
 
     def _valid_email(self, email):
+        """Checks for a valid email format."""
         return re.match(r"[^@]+@[^@]+\.[^@]+", email)
 
-    # ----------------- Core Features ----------------- #
+    # -------- Registration + Login -------- #
 
     def register(self, username, email, password, role="customer"):
         """
-        Register a new user with validation.
+        Creates a new user account with field validation.
         """
-        # --- Validation --- #
         if len(username.strip()) < 3:
             print("Username must be at least 3 characters.")
             return
@@ -60,55 +60,65 @@ class Account:
                 INSERT INTO accounts (username, email, password, role)
                 VALUES (?, ?, ?, ?)
             """, (username.strip(), email.strip(), hashed_pw, role), commit=True)
-
             print(f"Account created for {username}")
 
         except Exception as e:
-            if "UNIQUE constraint" in str(e):
+            if "UNIQUE" in str(e):
                 print("Username or Email already exists.")
             else:
                 print(f"Registration failed: {e}")
 
     def login(self, username, password):
         """
-        Authenticate user and return session dict.
+        Validates username + password and returns a user session dictionary.
         """
         hashed_pw = self._hash(password)
 
-        user = self.db.fetchone("""
+        record = self.db.fetchone("""
             SELECT account_id, username, role
             FROM accounts
             WHERE username=? AND password=?
         """, (username, hashed_pw))
 
-        if user:
-            print(f"Welcome back, {user[1]}! (role: {user[2]})")
-            return {"user_id": user[0], "username": user[1], "role": user[2]}
+        if record:
+            print(f"Welcome back, {record[1]}! (role: {record[2]})")
+            return {"user_id": record[0], "username": record[1], "role": record[2]}
 
         print("Invalid username or password.")
         return None
 
-    # ----------------- Staff Seeding ----------------- #
+    # -------- Default System Accounts -------- #
 
     def seed_default_staff(self):
-        """
-        Ensures a staff account exists.
-        """
-        existing = self.db.fetchone("SELECT * FROM accounts WHERE role='staff'")
+        """Creates a staff account if none exists (ensures admin access)."""
+        existing = self.db.fetchone("SELECT 1 FROM accounts WHERE role='staff'")
         if not existing:
             hashed_pw = self._hash("staff123")
             self.db.execute("""
                 INSERT INTO accounts (username, email, password, role)
                 VALUES (?, ?, ?, ?)
             """, ("staff", "staff@hexpress.com", hashed_pw, "staff"), commit=True)
-            print("[INFO] Default staff account created (username: staff | password: staff123)")
+            print("[INFO] Default staff account created (staff / staff123)")
+
+    def seed_default_customer(self):
+        """Creates a quick-login demo customer if not present."""
+        existing = self.db.fetchone("SELECT 1 FROM accounts WHERE username='customer'")
+        if not existing:
+            hashed_pw = self._hash("customer123")
+            self.db.execute("""
+                INSERT INTO accounts (username, email, password, role)
+                VALUES (?, ?, ?, ?)
+            """, ("customer", "customer@example.com", hashed_pw, "customer"), commit=True)
+            print("[INFO] Default customer created (customer / customer123)")
 
 
-# ----------------- Utility: View all Users (Staff Only) ----------------- #
+# -------- Staff Utility: List All Users -------- #
 
 def view_all_users():
+    """Displays all registered user accounts (staff use only)."""
     db = DBManager()
     users = db.execute("SELECT * FROM accounts").fetchall()
+
     print("\n---- Registered Users ----")
     print("ID | Username        | Email                        | Role")
     print("-------------------------------------------------------------")

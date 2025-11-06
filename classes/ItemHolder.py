@@ -129,6 +129,30 @@ class ItemHolder:
         self.cursor.execute("DELETE FROM items WHERE name=?", (item_name,))
         self.conn.commit()
 
+    def seed_default_items(self):
+        """
+        Seeds some basic items if the database is empty.
+        This only runs once because it checks if items table already has data.
+        """
+        count = self.db.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+        if count > 0:
+            return  # Inventory already seeded
+
+        items_to_seed = [
+            ("Apples", "Fresh red apples", 4.50, "food", "2025-12-01", 30),
+            ("Milk", "Dairy milk 2L", 3.80, "food", "2025-11-20", 20),
+            ("Bread", "Fresh bakery loaf", 2.50, "food", "2025-11-05", 15),
+            ("Carrots", "1kg carrots", 2.20, "food", "2025-12-10", 25),
+            ("VB Beer", "Aussie Lager 375ml", 18.00, "alcohol", "4.9%", 10),
+        ]
+
+        for name, desc, price, category, extra, qty in items_to_seed:
+            self.add_item(name, desc, price, qty, category=category, extra=extra)
+
+        print("[INFO] Default inventory seeded.")
+
+
+
 
 if __name__ == "__main__":
     holder = ItemHolder()

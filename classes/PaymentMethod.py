@@ -1,47 +1,54 @@
-# PaymentMethod class handles the third-party payment (this is a mock, no actual implementation)
+"""
+Mock payment gateway used by the Payment class.
+No real transactions occur, only simulates success/failure responses.
+"""
+
+import time
+
 class PaymentMethod:
+    """
+    Represents a simple third-party payment processor.
+    Supports credit/debit card, AMEX, and PayPal-like options.
+    """
 
-    # initialise the PaymentMethod class
     def __init__(self):
-        self.paymentMethods = ["credit_card", "debit_card", "AMEX", "paypal"]
-    
-    # called when payment is processed from Payment class
+        self.methods = ["credit_card", "debit_card", "AMEX", "paypal"]
+
     def pay(self, amount, method="credit_card"):
+        """
+        Attempt to process payment.
+        Returns success if method is supported.
+        """
+        if method not in self.methods:
+            return {"success": False, "error": "Unsupported payment method"}
 
-        # check if method is valid
-        if method not in self.paymentMethods:
-            return {"success": False, "error": "Method not supported"}
-        
-        # payment always succeeds if method is valid
-        return {
-            "success": True,
-            "transaction_id": f"TN{int(__import__('time').time() * 100)}",
-            "gateway": method
-        }
-    
-    # add a new payment method
-    def addMethod(self, method):
-        
-        if method not in self.paymentMethods:
-            self.paymentMethods.append(method)
+        # Fake transaction ID
+        txn = f"TN{int(time.time() * 100)}"
+
+        return {"success": True, "transaction_id": txn, "gateway": method}
+
+    def add_method(self, method):
+        """
+        Adds a new payment option.
+        """
+        if method not in self.methods:
+            self.methods.append(method)
             return True
+        return False
 
-        return False  # already exists
-    
-    # remove a payment method
-    def removeMethod(self, method):
-
-        if method in self.paymentMethods:
-            self.paymentMethods.remove(method)
+    def remove_method(self, method):
+        """
+        Removes a payment option.
+        """
+        if method in self.methods:
+            self.methods.remove(method)
             return True
+        return False
 
-        return False  # not found
-    
-    # refund payment, called when payment is refunded from Payment class
     def refund(self, transaction_id, amount):
-
-        return {
-            "success": True, # always succeeds
-            "refund_id": f"REF{int(__import__('time').time() * 100)}",
-            "amount_refunded": amount
-        }
+        """
+        Mock refund action.
+        Always succeeds for simplicity.
+        """
+        refund_id = f"REF{int(time.time() * 100)}"
+        return {"success": True, "refund_id": refund_id, "amount_refunded": amount}

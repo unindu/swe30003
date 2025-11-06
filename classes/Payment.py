@@ -1,24 +1,26 @@
-from classes.db_manager import DBManager    # used for database connection
+from classes.db_manager import DBManager
 from classes.PaymentMethod import PaymentMethod
+from datetime import datetime
 
-from datetime import datetime # used for timestamp for payment_date
 
-# Payment class handles the payment process
 class Payment:
-    
-    # initialise the Payment class
-    def __init__(self, order_id, cost):
+    """
+    Handles processing and recording of payments for orders.
+    Works with PaymentMethod (mock gateway) and stores results in DB.
+    """
+
+    def __init__(self, order_id, amount):
         self.order_id = order_id
-        self.cost = cost
+        self.amount = amount
         self.status = "pending"
         self.transaction_id = None
         self.payment_date = None
-        self.payment = None  # Third party payment gateway (PaymentMethod)
-        self.db = DBManager() # database connection
-        self._create_payments_table()
-    
-    # creates the payments table if it doesn't exist
-    def _create_payments_table(self):
+        self.gateway = None
+        self.db = DBManager()
+        self._create_table()
+
+    def _create_table(self):
+        """Ensures the payments table exists."""
         self.db.execute("""
             CREATE TABLE IF NOT EXISTS payments (
                 payment_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,70 +28,71 @@ class Payment:
                 amount REAL NOT NULL,
                 status TEXT NOT NULL,
                 transaction_id TEXT,
-                payment_date TEXT
-            )
+                payment_date TEXT,
+                FOREIGN KEY(order_id) REFERENCES orders(order_id)
+            );
         """, commit=True)
-    
-    # payment using gateway
-    def process(self, payment_method="credit_card"):
-        
-        self.status = "processing" 
-        
-        # Use payment gateway to process payment
-        self.payment = PaymentMethod()  # Store gateway reference
-        result = self.payment.pay(self.cost, payment_method)
-        
-        if result["success"]:
+
+    # ---------------- Processing ---------------- #
+
+    def process(self, method="credit_card"):
+        """Processes the payment using a mock payment gateway."""
+        self.status = "processing"
+        self.gateway = PaymentMethod()
+
+        result = self.gateway.pay(self.amount, method)
+
+        if result.get("success"):
             self.status = "completed"
-            self.transaction_id = result.get("transaction_id", f"TN{self.order_id}")
+            self.transaction_id = result.get("transaction_id", f"TX{self.order_id}")
             self.payment_date = datetime.now().strftime("%Y-%m-%d %H:%M")
-            self._save_to_db()
-            return True
         else:
             self.status = "failed"
-            self._save_to_db()
-            return False
-    
-    # generate invoice (print) for the payment
-    def generateInvoice(self):
-        print(f"\nPAYMENT INVOICE")
-        print(f"Order ID: {self.order_id}")
-        print(f"Date: {self.payment_date}")
-        print(f"Cost: ${self.cost:.2f}")
-        print(f"Status: {self.status}")
-        print(f"Transaction ID: {self.transaction_id}")
-        print()
-    
-    # create payment record in the database
-    def _save_to_db(self):
 
-        # insert order_id, amount, status, transaction_id, payment_date
-        self.db.execute("""
-            INSERT INTO payments (order_id, amount, status, transaction_id, payment_date)
-            VALUES (?, ?, ?, ?, ?)
-        """, (self.order_id, self.cost, self.status, self.transaction_id, self.payment_date), commit=True)
+        self._save()
+        return self.status == "completed"
 
-    # refund payment, called when order is cancelled from Order class
+    # ---------------- Refund ---------------- #
+
     def refund(self):
-
-        # check if payment is completed
+        """Attempts to refund a completed payment."""
         if self.status != "completed":
             return False
-        
-        # Call the payment gateway to process refund
-        if not self.payment:
-            self.payment = PaymentMethod()
-        result = self.payment.refund(self.transaction_id, self.cost)
-        
-        if result["success"]:
+
+        if not self.gateway:
+            self.gateway = PaymentMethod()
+
+        result = self.gateway.refund(self.transaction_id, self.amount)
+
+        if result.get("success"):
             self.status = "refunded"
             self.db.execute("""
-                UPDATE payments SET status = ? WHERE order_id = ?
+                UPDATE payments SET status=? WHERE order_id=?
             """, (self.status, self.order_id), commit=True)
             return True
 
-        return False # if refund is not successful
+        return False
+
+    # ---------------- DB Storage ---------------- #
+
+    def _save(self):
+        """Stores payment result in the database."""
+        self.db.execute("""
+            INSERT INTO payments (order_id, amount, status, transaction_id, payment_date)
+            VALUES (?, ?, ?, ?, ?)
+        """, (self.order_id, self.amount, self.status, self.transaction_id, self.payment_date), commit=True)
+
+    # ---------------- Utility ---------------- #
+
+    def generate_invoice(self):
+        """Prints a plain-text invoice."""
+        print("\nPAYMENT INVOICE")
+        print(f"Order ID: {self.order_id}")
+        print(f"Amount:   ${self.amount:.2f}")
+        print(f"Status:   {self.status}")
+        print(f"Trans ID: {self.transaction_id}")
+        print(f"Date:     {self.payment_date}\n")
 
 
 if __name__ == "__main__":
-    payment = Payment(1, 100)
+    Payment(1, 50).process()
