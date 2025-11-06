@@ -1,27 +1,43 @@
 import sqlite3
+import os
 
 class DBManager:
-    _connection = None
-    _cursor = None
+    """
+    Handles a single shared connection to the SQLite database.
+    Provides helper methods for executing queries and retrieving results.
+    """
 
     def __init__(self):
-        if DBManager._connection is None:
-            DBManager._connection = sqlite3.connect("inventory_database.db", check_same_thread=False)
-            DBManager._connection.execute("PRAGMA foreign_keys = ON;")  # Always enable FKs
-            DBManager._cursor = DBManager._connection.cursor()
+        # Locate project root (parent of /classes/)
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        db_path = os.path.join(base_dir, "inventory_database.db")
 
-        self.conn = DBManager._connection
-        self.cursor = DBManager._cursor
+        # Establish connection (foreign key support enabled)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.conn.execute("PRAGMA foreign_keys = ON;")
+        self.cursor = self.conn.cursor()
+
+    # ----------------- Query Helpers ----------------- #
 
     def execute(self, query, params=(), commit=False):
+        """
+        Execute a SQL statement.
+        Set commit=True if the operation modifies data.
+        """
         result = self.cursor.execute(query, params)
         if commit:
             self.conn.commit()
         return result
 
     def fetchone(self, query, params=()):
+        """
+        Return a single result row or None.
+        """
         return self.cursor.execute(query, params).fetchone()
 
     def fetchall(self, query, params=()):
+        """
+        Return all result rows as a list.
+        """
         return self.cursor.execute(query, params).fetchall()
 
