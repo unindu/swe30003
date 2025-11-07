@@ -24,13 +24,68 @@ from classes.Delivery import Delivery
 # View all users
 
 
-db = DBManager()
 # Setup
-ItemHolder().setup_db()
-ItemHolder().seed_default_items()
-Account().seed_default_staff()
-Account().seed_default_customer()
-Delivery.ensure_table()
+
+db = DBManager()
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup():
+    print("Let the testing begin!")
+    ItemHolder().setup_db()
+    ItemHolder().seed_default_items()
+    Account().seed_default_staff()
+    Account().seed_default_customer()
+    Delivery.ensure_table()
+
+    yield # This does the tests
+
+    # cleanup the db
+    # Remove what was created
+    db.execute("""
+        DELETE FROM items
+        WHERE name = ?
+    """, ("test_item",), True)
+
+    user_id = db.execute("""
+        SELECT account_id
+        FROM accounts
+        WHERE username = ?
+    """, ("test_username",), True).fetchone()[0]
+
+
+    db.execute("""
+        DELETE FROM carts
+        WHERE user_id = ?
+    """, (user_id,), True)
+
+    db.execute("""
+       DELETE
+       FROM deliveries
+       WHERE name = ?
+       """, ("test_name",), True)
+
+    db.execute("""
+        DELETE
+        FROM payments
+        """)
+
+    db.execute("""
+        DELETE FROM orders
+        WHERE user_id = ?
+    """, (user_id,), True)
+
+    db.execute("""
+        DELETE FROM accounts
+        WHERE username = ?
+    """, ("test_username",), True)
+
+    db.execute("""
+        DELETE FROM stock
+    """)
+
+    ItemHolder().seed_default_items()
+
+
 
 @pytest.mark.order(1)
 def test_staff_login():
@@ -44,7 +99,7 @@ def test_add_item():
         FROM items
         JOIN stock ON items.id = stock.id
         WHERE name = ?
-        """, ("test_item",)).fetchone() == ["test_item", "test_description", 100, 10]
+        """, ("test_item",), True).fetchone() == ("test_item", "test_description", 100.0, 10)
 
 @pytest.mark.order(4)
 def test_adjust_stock():
@@ -54,7 +109,7 @@ def test_adjust_stock():
         FROM items
         JOIN stock on items.id = stock.id
         WHERE name = ? 
-        """, ("test_item",)).fetchone() == [5]
+        """, ("test_item",), True).fetchone() == (5,)
 
     Inventory().update_stock("test_item", 95)
     assert db.execute("""
@@ -62,21 +117,21 @@ def test_adjust_stock():
         FROM items
         JOIN stock on items.id = stock.id
         WHERE name = ?
-        """, ("test_item",)).fetchone() == [100]
+        """, ("test_item",), True).fetchone() == (100,)
 
 
 @pytest.mark.order(2)
 def test_register_customer():
     import hashlib
     account = Account()
-    account.register("test_username", "test_email", "test_password")
+    account.register("test_username", "test@test_email.com", "test_password")
     db_answer = db.execute("""
         SELECT username, email, password
         FROM accounts
         WHERE username = ?
-        """, ("test_username",)).fetchone()
+        """, ("test_username",), True).fetchone()
     hashed_password = hashlib.sha256("test_password".encode()).hexdigest()
-    assert db_answer == ["test_username", "test_email", hashed_password]
+    assert db_answer == ("test_username", "test@test_email.com", hashed_password)
 
 @pytest.mark.order(5)
 def test_logging_in():
@@ -92,21 +147,21 @@ def test_cart():
         WHERE username = ?
     """, ("test_username",)).fetchone()[0]
 
-    cart = Cart({"user_id" : user_id})
+    cart = Cart(user_id)
     cart.add_to_cart("test_item", 5)
     assert db.execute("""
         SELECT carts.quantity, items.name
         FROM carts
         JOIN items on carts.item_id = items.id
         WHERE user_id = ?
-    """, (user_id,)) == [(5, "test_item")]
+    """, (user_id,), True).fetchone() == (5, "test_item")
     cart.remove_from_cart("test_item", 3)
     assert db.execute("""
         SELECT carts.quantity, items.name
         FROM carts
         JOIN items on carts.item_id = items.id
         WHERE user_id = ?
-    """, (user_id,)) == [(2 , "test_item")]
+    """, (user_id,), True).fetchone() == (2 , "test_item")
 
 
 @pytest.mark.order(7)
@@ -115,7 +170,7 @@ def test_create_order():
          SELECT account_id
          FROM accounts
          WHERE username = ?
-         """, ("test_username",)).fetchone()[0]
+         """, ("test_username",), True).fetchone()[0]
     order = Order(user_id)
     order.checkout("test_name", "test_address", "0123456789")
     assert db.execute("""
@@ -124,4 +179,4 @@ def test_create_order():
         JOIN stock ON stock.order_id = orders.order_id
         JOIN items ON stock.id = items.id
         WHERE orders.user_id = ?
-    """, (user_id,)) == ["test_item", 2, "complete"]
+    """, (user_id,), True).fetchone() == ("test_item", 2, "complete")

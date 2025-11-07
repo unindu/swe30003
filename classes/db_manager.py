@@ -10,10 +10,10 @@ class DBManager:
     def __init__(self):
         # Locate project root (parent of /classes/)
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        db_path = ":memory:"
+        self.db_path = os.path.join(base_dir, "inventory_database.db")
 
         # Establish connection (foreign key support enabled)
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.execute("PRAGMA foreign_keys = ON;")
         self.cursor = self.conn.cursor()
 
@@ -24,7 +24,11 @@ class DBManager:
         Execute a SQL statement.
         Set commit=True if the operation modifies data.
         """
-        result = self.cursor.execute(query, params)
+        with sqlite3.connect(self.db_path, check_same_thread=False) as conn:
+            conn.execute("PRAGMA foreign_keys = ON;")
+
+            cursor = conn.cursor()
+            result = cursor.execute(query, params)
         if commit:
             self.conn.commit()
         return result
